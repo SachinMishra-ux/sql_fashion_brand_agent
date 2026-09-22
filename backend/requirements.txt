@@ -1,0 +1,8 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+mysql-connector-python==9.0.0
+python-dotenv==1.0.1
+langchain-core==0.3.29
+langchain-groq==0.2.4
+langgraph==0.2.70
+pydantic==2.9.2

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STELLA — AI Fashion Stylist | Luxury Catalog</title>
+  <meta name="description" content="Discover our exclusive fashion catalog with STELLA, your AI personal stylist. Browse dresses, outerwear, jewelry and more from premium brands." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Ambient background orbs ─────────────────────────── -->
+  <div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- ── HEADER ────────────────────────────────────────────── -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand-logo">
+        <span class="logo-mark">✦</span>
+        <span class="logo-name">MAISON LUXÉ</span>
+      </div>
+      <nav class="header-nav" role="navigation" aria-label="Catalog filters">
+        <button class="nav-pill active" id="btn-all"       data-category="">All</button>
+        <button class="nav-pill"        id="btn-dresses"   data-category="Dresses">Dresses</button>
+        <button class="nav-pill"        id="btn-outerwear" data-category="Outerwear">Outerwear</button>
+        <button class="nav-pill"        id="btn-bags"      data-category="Bags">Bags</button>
+        <button class="nav-pill"        id="btn-footwear"  data-category="Footwear">Footwear</button>
+        <button class="nav-pill"        id="btn-jewelry"   data-category="Jewelry">Jewelry</button>
+      </nav>
+      <div class="header-right">
+        <button class="icon-btn" id="toggle-chat-btn" aria-label="Open STELLA AI stylist" title="Chat with STELLA">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+          <span>STELLA AI</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── HERO ──────────────────────────────────────────────── -->
+  <section class="hero" aria-label="Hero banner">
+    <div class="hero-content">
+      <p class="hero-eyebrow">New Season · SS 2025</p>
+      <h1 class="hero-title">Where Style<br/>Meets Intelligence</h1>
+      <p class="hero-sub">Ask STELLA anything. Discover collections, find your perfect piece, and explore the world of Maison Luxé.</p>
+      <button class="hero-cta" id="hero-cta-btn">Chat with STELLA →</button>
+    </div>
+    <div class="hero-badge" aria-hidden="true">
+      <span class="badge-text">AI-Powered<br/>Styling</span>
+    </div>
+  </section>
+
+  <!-- ── MAIN LAYOUT ───────────────────────────────────────── -->
+  <main class="main-layout" role="main">
+
+    <!-- Catalog Grid -->
+    <section class="catalog-section" aria-labelledby="catalog-heading">
+      <div class="section-header">
+        <h2 id="catalog-heading" class="section-title">The Collection</h2>
+        <p class="section-sub" id="product-count">Loading catalog…</p>
+      </div>
+      <div class="product-grid" id="product-grid" role="list" aria-label="Fashion catalog">
+        <!-- populated by JS -->
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── CHAT PANEL ────────────────────────────────────────── -->
+  <aside class="chat-panel" id="chat-panel" role="complementary" aria-label="STELLA AI styling assistant">
+    <div class="chat-header">
+      <div class="chat-avatar" aria-hidden="true">✦</div>
+      <div class="chat-title-block">
+        <h2 class="chat-title">STELLA</h2>
+        <span class="chat-status" id="chat-status">
+          <span class="status-dot"></span> Online · Your AI Stylist
+        </span>
+      </div>
+      <button class="close-chat-btn" id="close-chat-btn" aria-label="Close chat">✕</button>
+    </div>
+
+    <div class="chat-messages" id="chat-messages" role="log" aria-live="polite" aria-label="Chat history">
+      <!-- Welcome bubble -->
+      <div class="message message-ai" id="welcome-msg">
+        <div class="message-bubble">
+          <p>Bonjour! I'm <strong>STELLA</strong>, your personal AI stylist. ✨</p>
+          <p>Ask me anything about our collection — find dresses by budget, explore seasonal catalogs, or check what's in stock.</p>
+          <p><em>Try: "Show me dresses under $200" or "What's in the Spring 2025 catalog?"</em></p>
+        </div>
+        <span class="message-time">Just now</span>
+      </div>
+    </div>
+
+    <!-- Chat-inline product results -->
+    <div class="chat-products" id="chat-products" aria-label="Matching products"></div>
+
+    <form class="chat-form" id="chat-form" autocomplete="off" aria-label="Send a message to STELLA">
+      <div class="chat-input-wrap">
+        <input
+          type="text"
+          id="chat-input"
+          class="chat-input"
+          placeholder="Ask STELLA…"
+          aria-label="Your message"
+          maxlength="500"
+        />
+        <button type="submit" class="send-btn" id="send-btn" aria-label="Send message">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="quick-prompts" role="group" aria-label="Quick prompts">
+        <button type="button" class="quick-pill" id="qp1">Dresses under $200</button>
+        <button type="button" class="quick-pill" id="qp2">Spring catalog</button>
+        <button type="button" class="quick-pill" id="qp3">Top sellers</button>
+        <button type="button" class="quick-pill" id="qp4">New jewelry</button>
+      </div>
+    </form>
+  </aside>
+
+  <!-- ── PRODUCT DETAIL MODAL ──────────────────────────────── -->
+  <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-product-name" hidden>
+    <div class="modal-card">
+      <button class="modal-close" id="modal-close" aria-label="Close product detail">✕</button>
+      <img src="" alt="" id="modal-img" class="modal-img" />
+      <div class="modal-info">
+        <p class="modal-brand" id="modal-brand"></p>
+        <h3 class="modal-name" id="modal-product-name"></h3>
+        <div class="modal-meta">
+          <span class="modal-category" id="modal-category"></span>
+          <span class="modal-color" id="modal-color"></span>
+          <span class="modal-sizes" id="modal-sizes"></span>
+        </div>
+        <div class="modal-price-row">
+          <span class="modal-price" id="modal-price"></span>
+          <span class="modal-badge" id="modal-discount"></span>
+        </div>
+        <p class="modal-desc" id="modal-desc"></p>
+        <button class="modal-cta" id="modal-cta">Add to Wishlist ♡</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast" role="alert" aria-live="assertive"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
