@@ -1,21 +1,22 @@
 """
 agent.py
-LangGraph ReAct agent that answers natural-language questions
-about the fashion brand MySQL database.
+Pure ReAct agent logic for the fashion brand catalog assistant (STELLA).
+Assembles tools, prompt, LLM, and persistence checkpointer using create_agent.
 """
 import json
-import os
+import logging
 from dotenv import load_dotenv
 
-from langchain_core.messages import SystemMessage
+from langchain.agents import create_agent
 from langchain_core.tools import tool
-from langchain_groq import ChatGroq
-from langgraph.graph import StateGraph, START, MessagesState
-from langgraph.prebuilt import ToolNode, tools_condition
 
-import db
+import llm as llm_module
+import mysql_db
+import supabase
 
 load_dotenv(override=True)
+
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ def execute_sql_query(query: str) -> str:
     Only use SELECT statements. Never INSERT, UPDATE, DELETE or DROP.
     """
     try:
-        results = db.run_query(query)
+        results = mysql_db.run_query(query)
         if not results:
             return "Query returned no rows."
         return json.dumps(results, default=str)
@@ -46,7 +47,7 @@ def get_database_schema() -> str:
     Call this whenever you are unsure about column names or table structure.
     """
     try:
-        return db.get_schema()
+        return mysql_db.get_schema()
     except Exception as e:
         return f"Error fetching schema: {str(e)}"
 
@@ -92,31 +93,27 @@ For non-product answers (stats, user info, order history etc), format as:
 
 
 # ──────────────────────────────────────────────────────────────
-# Build LangGraph ReAct Graph
+# Build Agent with create_agent
 # ──────────────────────────────────────────────────────────────
 
-def build_agent():
+def build_agent(checkpointer=None):
+    """
+    Assembles the ReAct agent using create_agent, passing SQL tools,
+    system prompt, LLM from llm.py, and state checkpointer from supabase.py.
+    """
     tools = [execute_sql_query, get_database_schema]
-    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-    llm_with_tools = llm.bind_tools(tools)
-    tool_node = ToolNode(tools)
-    system_msg = SystemMessage(content=SYSTEM_PROMPT)
+    model = llm_module.get_llm()
 
-    def call_model(state: MessagesState):
-        messages = state["messages"]
-        if not messages or not isinstance(messages[0], SystemMessage):
-            messages = [system_msg] + messages
-        response = llm_with_tools.invoke(messages)
-        return {"messages": [response]}
+    if checkpointer is None:
+        checkpointer = supabase.get_checkpointer()
 
-    workflow = StateGraph(MessagesState)
-    workflow.add_node("agent", call_model)
-    workflow.add_node("tools", tool_node)
-    workflow.add_edge(START, "agent")
-    workflow.add_conditional_edges("agent", tools_condition)
-    workflow.add_edge("tools", "agent")
-
-    return workflow.compile()
+    agent = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+        checkpointer=checkpointer,
+    )
+    return agent
 
 
 # Singleton agent instance
@@ -130,13 +127,15 @@ def get_agent():
     return _agent
 
 
-def chat(message: str) -> dict:
+def chat(message: str, session_id: str = "default") -> dict:
     """
     Sends a message to the ReAct agent and returns a parsed response dict.
     Returned dict always has: type, message, and optionally products[].
+    Uses session_id for multi-turn state persistence.
     """
     agent = get_agent()
-    result = agent.invoke({"messages": [("user", message)]})
+    config = {"configurable": {"thread_id": session_id}}
+    result = agent.invoke({"messages": [("user", message)]}, config=config)
     final_msg = result["messages"][-1].content
 
     # Try to parse as JSON (structured product/text response)
