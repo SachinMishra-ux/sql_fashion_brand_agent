@@ -17,9 +17,21 @@ const sendBtn        = document.getElementById("send-btn");
 const toggleChatBtn  = document.getElementById("toggle-chat-btn");
 const heroCta        = document.getElementById("hero-cta-btn");
 const closeChatBtn   = document.getElementById("close-chat-btn");
+const clearChatBtn   = document.getElementById("clear-chat-btn");
 const modalOverlay   = document.getElementById("modal-overlay");
 const modalClose     = document.getElementById("modal-close");
 const toast          = document.getElementById("toast");
+
+// User Switcher DOM refs
+const userSwitcher   = document.getElementById("user-switcher");
+const userBtn        = document.getElementById("user-btn");
+const userDropdown   = document.getElementById("user-dropdown");
+const userOptions    = document.getElementById("user-options");
+const currentUserAvatar = document.getElementById("current-user-avatar");
+const currentUserName   = document.getElementById("current-user-name");
+const currentUserTier   = document.getElementById("current-user-tier");
+const chatUserIndicatorAvatar = document.getElementById("chat-user-indicator-avatar");
+const chatUserIndicatorName   = document.getElementById("chat-user-indicator-name");
 
 // Quick prompts
 const quickPills = document.querySelectorAll(".quick-pill");
@@ -37,6 +49,8 @@ const navPills = document.querySelectorAll(".nav-pill");
 let allProducts  = [];
 let wishlist     = new Set();
 let currentFilter = "";
+let demoUsers    = [];
+let activeUser   = null;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -185,8 +199,13 @@ function openModal(p) {
     ? `$${(p.price * (1 - p.discount_pct / 100)).toFixed(2)}`
     : `$${Number(p.price).toFixed(2)}`;
 
-  document.getElementById("modal-img").src = p.image_url || "";
-  document.getElementById("modal-img").alt = p.name;
+  const modalImg = document.getElementById("modal-img");
+  modalImg.src = p.image_url || "";
+  modalImg.alt = p.name;
+  modalImg.onerror = function() {
+    this.onerror = null;
+    this.src = `https://picsum.photos/seed/${p.id}fashion/600/800`;
+  };
   document.getElementById("modal-brand").textContent    = p.brand;
   document.getElementById("modal-product-name").textContent = p.name;
   document.getElementById("modal-price").textContent    = discountedPrice;
@@ -243,6 +262,108 @@ function toggleWishlist(p, btn) {
   }
 }
 
+// ── User Management & JWT Authentication ──────────────────────
+
+async function initUsers() {
+  try {
+    const res = await fetch(`${API_BASE}/auth/users`);
+    if (res.ok) {
+      const data = await res.json();
+      demoUsers = data.users || [];
+    }
+  } catch (e) {
+    console.warn("Could not fetch demo users from backend:", e);
+  }
+
+  // Fallback demo users if backend is unreachable
+  if (!demoUsers || !demoUsers.length) {
+    demoUsers = [
+      { id: "1", name: "Priya Sharma", email: "priya.sharma@email.com", loyalty_tier: "Platinum", avatar: "👑" },
+      { id: "2", name: "Aisha Khan", email: "aisha.khan@email.com", loyalty_tier: "Gold", avatar: "⭐" },
+      { id: "3", name: "Riya Verma", email: "riya.verma@email.com", loyalty_tier: "Gold", avatar: "💎" },
+    ];
+  }
+
+  renderUserDropdown();
+  selectUser(demoUsers[0], false);
+}
+
+function renderUserDropdown() {
+  if (!userOptions) return;
+  userOptions.innerHTML = "";
+
+  demoUsers.forEach(u => {
+    const opt = document.createElement("div");
+    const isSelected = activeUser && String(activeUser.id) === String(u.id);
+    opt.className = `user-option ${isSelected ? "active" : ""}`;
+    opt.dataset.id = u.id;
+    opt.setAttribute("role", "menuitem");
+    opt.tabIndex = 0;
+
+    opt.innerHTML = `
+      <div class="user-option-avatar">${u.avatar || "👤"}</div>
+      <div class="user-option-info">
+        <div class="user-option-name">${escapeHtml(u.name)}</div>
+        <div class="user-option-tier">${escapeHtml(u.loyalty_tier)} Member</div>
+        <div class="user-option-email">${escapeHtml(u.email)}</div>
+      </div>
+      ${isSelected ? '<span class="user-check-icon">✓</span>' : ""}
+    `;
+
+    opt.addEventListener("click", () => {
+      selectUser(u, true);
+      if (userSwitcher) userSwitcher.classList.remove("open");
+    });
+    userOptions.appendChild(opt);
+  });
+}
+
+function selectUser(user, notify = true) {
+  activeUser = user;
+
+  if (currentUserAvatar) currentUserAvatar.textContent = user.avatar || "👤";
+  if (currentUserName) currentUserName.textContent = user.name;
+  if (currentUserTier) currentUserTier.textContent = user.loyalty_tier;
+
+  if (chatUserIndicatorAvatar) chatUserIndicatorAvatar.textContent = user.avatar || "👤";
+  if (chatUserIndicatorName) chatUserIndicatorName.textContent = `${user.name} (${user.loyalty_tier})`;
+
+  renderUserDropdown();
+
+  // Reset chat welcome with personalized greeting for this user
+  if (chatMessages) {
+    chatMessages.innerHTML = `
+      <div class="message message-ai">
+        <div class="message-bubble">
+          <p>Bonjour, <strong>${escapeHtml(user.name)}</strong>! ✨</p>
+          <p>Welcome to your personal Maison Luxé salon. As a valued <strong>${escapeHtml(user.loyalty_tier)}</strong> member, I'm here to curate pieces tailored specifically to your taste.</p>
+          <p><em>Try: "Recommend items for me", "Show dresses under $200", or "What's in the seasonal catalog?"</em></p>
+        </div>
+        <span class="message-time">Just now</span>
+      </div>
+    `;
+  }
+  if (chatProducts) chatProducts.innerHTML = "";
+
+  if (notify) {
+    showToast(`Active Customer: ${user.name} (${user.loyalty_tier}) ✦`);
+  }
+}
+
+// Toggle user dropdown
+if (userBtn && userSwitcher) {
+  userBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    userSwitcher.classList.toggle("open");
+  });
+}
+
+document.addEventListener("click", (e) => {
+  if (userSwitcher && !userSwitcher.contains(e.target)) {
+    userSwitcher.classList.remove("open");
+  }
+});
+
 // ── Chat Panel ────────────────────────────────────────────────
 
 function openChat() {
@@ -256,6 +377,35 @@ function closeChat() {
 toggleChatBtn.addEventListener("click", openChat);
 heroCta.addEventListener("click", openChat);
 closeChatBtn.addEventListener("click", closeChat);
+
+if (clearChatBtn) {
+  clearChatBtn.addEventListener("click", async () => {
+    if (!activeUser) return;
+    const confirmClear = confirm(`Clear conversation history for ${activeUser.name}?`);
+    if (!confirmClear) return;
+
+    try {
+      const headers = {};
+      if (activeUser.token) {
+        headers["Authorization"] = `Bearer ${activeUser.token}`;
+      }
+      const res = await fetch(`${API_BASE}/chat/history`, {
+        method: "DELETE",
+        headers: headers,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        selectUser(activeUser, false);
+        showToast("Conversation history cleared ✦");
+      } else {
+        showToast(`Failed to clear: ${data.detail || "Error"}`);
+      }
+    } catch (err) {
+      console.error("Failed to delete chat history:", err);
+      showToast("Error clearing chat history");
+    }
+  });
+}
 
 quickPills.forEach((pill, i) => {
   pill.addEventListener("click", () => {
@@ -360,17 +510,26 @@ async function sendMessage() {
   chatProducts.innerHTML = "";
   showTypingIndicator();
 
+  const headers = { "Content-Type": "application/json" };
+  if (activeUser && activeUser.token) {
+    headers["Authorization"] = `Bearer ${activeUser.token}`;
+  }
+
   try {
     const res = await fetch(`${API_BASE}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify({ message: text }),
     });
     const data = await res.json();
     removeTypingIndicator();
 
     if (!res.ok) {
-      appendAIMessage(`<p style="color:var(--clr-error)">Sorry, something went wrong: ${escapeHtml(data.detail || "Unknown error")}</p>`);
+      if (res.status === 401) {
+        appendAIMessage(`<p style="color:var(--clr-error)">🔒 Authentication required. Please select a user profile from the top-right menu.</p>`);
+      } else {
+        appendAIMessage(`<p style="color:var(--clr-error)">Sorry, something went wrong: ${escapeHtml(data.detail || "Unknown error")}</p>`);
+      }
       return;
     }
 
@@ -416,5 +575,5 @@ function escapeHtml(str) {
 }
 
 // ── Init ──────────────────────────────────────────────────────
-
+initUsers();
 loadProducts();

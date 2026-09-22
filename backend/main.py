@@ -2,12 +2,14 @@
 main.py
 FastAPI backend server for the Fashion Brand SQL ReAct Agent.
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Security
+from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
+import auth
 import mysql_db
 import supabase
 import agent as ag
@@ -159,14 +161,33 @@ def list_categories():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
+@app.get("/auth/users")
+def list_demo_users():
     """
-    Main chat endpoint. Sends the user's message to the LangGraph
-    ReAct agent and returns a structured response.
+    Returns the 3 demo users along with their pre-signed JWT tokens
+    for the frontend profile switcher.
+    """
+    return {"users": auth.get_demo_users_with_tokens()}
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat(
+    req: ChatRequest,
+    current_user: dict = Depends(auth.get_current_user),
+):
+    """
+    Main chat endpoint. Authenticates JWT token, uses authenticated user ID
+    as the thread_id for conversation persistence in PostgreSQL Supabase.
     """
     try:
-        result = ag.chat(req.message, session_id=req.session_id)
+        user_id = current_user.get("sub", "default")
+        thread_id = f"user_thread_{user_id}"
+
+        result = ag.chat(
+            req.message,
+            session_id=thread_id,
+            user_context=current_user,
+        )
         return ChatResponse(
             type=result.get("type", "text"),
             message=result.get("message", ""),
@@ -174,6 +195,40 @@ def chat(req: ChatRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/chat/history")
+@app.delete("/chat/thread")
+def delete_chat_history(
+    thread_id: str | None = None,
+    user_id: str | None = None,
+    username: str | None = None,
+    credentials: HTTPAuthorizationCredentials | None = Security(auth.security),
+):
+    """
+    Deletes conversation history / checkpoints from Supabase PostgreSQL.
+    Identifies the thread to delete using any of:
+    - thread_id (e.g. 'user_thread_1' or custom session name)
+    - user_id (e.g. '1' -> 'user_thread_1')
+    - username / email (e.g. 'Priya Sharma' -> 'user_thread_1')
+    - Or via Authorization Bearer token header of the logged-in user.
+    """
+    current_user = None
+    if credentials and credentials.credentials:
+        try:
+            current_user = auth.verify_token(credentials.credentials)
+        except Exception:
+            pass
+
+    target_thread_id = auth.resolve_thread_id(
+        thread_id=thread_id,
+        user_id=user_id,
+        username=username,
+        current_user=current_user,
+    )
+
+    result = supabase.delete_thread_checkpoints(target_thread_id)
+    return result
 
 
 # ──────────────────────────────────────────────────────────────

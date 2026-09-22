@@ -116,3 +116,34 @@ def get_checkpointer():
     if _checkpointer is None:
         _checkpointer = init_checkpointer()
     return _checkpointer
+
+
+def delete_thread_checkpoints(thread_id: str) -> dict:
+    """
+    Deletes all conversation checkpoints, blobs, and writes
+    associated with a thread_id from Supabase PostgreSQL.
+    """
+    checkpointer = get_checkpointer()
+
+    # Use PostgresSaver's built-in delete_thread if available
+    if hasattr(checkpointer, "delete_thread"):
+        try:
+            checkpointer.delete_thread(thread_id)
+            return {"status": "ok", "deleted_thread_id": thread_id, "message": f"Successfully deleted conversation history for {thread_id}"}
+        except Exception as e:
+            logger.warning(f"delete_thread failed on checkpointer ({e}), attempting direct SQL delete.")
+
+    # Direct SQL delete fallback
+    conn_info = get_postgres_connection_info()
+    if conn_info:
+        import psycopg
+
+        with psycopg.connect(conn_info) as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM checkpoints WHERE thread_id = %s;", (str(thread_id),))
+                cur.execute("DELETE FROM checkpoint_blobs WHERE thread_id = %s;", (str(thread_id),))
+                cur.execute("DELETE FROM checkpoint_writes WHERE thread_id = %s;", (str(thread_id),))
+            conn.commit()
+
+    return {"status": "ok", "deleted_thread_id": thread_id, "message": f"Successfully deleted conversation history for {thread_id}"}
+

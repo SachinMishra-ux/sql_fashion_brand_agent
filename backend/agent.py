@@ -127,7 +127,7 @@ def get_agent():
     return _agent
 
 
-def chat(message: str, session_id: str = "default") -> dict:
+def chat(message: str, session_id: str = "default", user_context: dict | None = None) -> dict:
     """
     Sends a message to the ReAct agent and returns a parsed response dict.
     Returned dict always has: type, message, and optionally products[].
@@ -135,7 +135,15 @@ def chat(message: str, session_id: str = "default") -> dict:
     """
     agent = get_agent()
     config = {"configurable": {"thread_id": session_id}}
-    result = agent.invoke({"messages": [("user", message)]}, config=config)
+
+    content = message
+    if user_context:
+        name = user_context.get("name", "Valued Customer")
+        tier = user_context.get("loyalty_tier", "Bronze")
+        email = user_context.get("email", "")
+        content = f"[Customer: {name} ({tier} Member, {email})]\n{message}"
+
+    result = agent.invoke({"messages": [("user", content)]}, config=config)
     final_msg = result["messages"][-1].content
 
     # Try to parse as JSON (structured product/text response)

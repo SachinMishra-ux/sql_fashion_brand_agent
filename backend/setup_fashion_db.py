@@ -162,7 +162,7 @@ PRODUCTS = [
      "Bold sculptural gold cuff bracelet. A power accessory for every occasion."),
 
     ("Silk Slip Skirt",         "Luxé Studios",  "Bottoms",   "Skirt",   145.00, 15, 50, "Blush Pink", "XS-XL",
-     "https://images.unsplash.com/photo-1583496661160-fb5974ca3b00?w=600",
+     "https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?w=600&q=80&auto=format&fit=crop",
      "Bias-cut pure silk slip skirt that moves like water. Effortlessly sensual."),
 
     ("Oversized Linen Shirt",   "EarthTone Co.", "Tops",      "Shirt",    95.00, 20, 70, "Sky Blue",   "XS-XXL",

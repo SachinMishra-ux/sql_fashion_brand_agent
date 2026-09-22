@@ -23,7 +23,7 @@ PRODUCT_IMAGES = {
     12: "https://images.unsplash.com/photo-1518049362265-d5b2a6467637?w=600&q=80&auto=format&fit=crop",  # Strappy Stiletto Heels
     13: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600&q=80&auto=format&fit=crop",  # Pearl Drop Earrings
     14: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=600&q=80&auto=format&fit=crop",  # Gold Cuff Bracelet
-    15: "https://images.unsplash.com/photo-1583496661160-fb5974ca3b00?w=600&q=80&auto=format&fit=crop",  # Silk Slip Skirt
+    15: "https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?w=600&q=80&auto=format&fit=crop",  # Silk Slip Skirt
     16: "https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=600&q=80&auto=format&fit=crop",  # Oversized Linen Shirt
 }
 
