@@ -9,10 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
-import auth
-import mysql_db
-import supabase
-import agent as ag
+try:
+    from backend import auth, mysql_db, supabase, agent as ag
+except ImportError:
+    import auth
+    import mysql_db
+    import supabase
+    import agent as ag
 
 app = FastAPI(
     title="Fashion Brand AI API",

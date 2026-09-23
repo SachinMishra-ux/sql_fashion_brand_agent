@@ -10,9 +10,12 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_core.tools import tool
 
-import llm as llm_module
-import mysql_db
-import supabase
+try:
+    from backend import llm as llm_module, mysql_db, supabase
+except ImportError:
+    import llm as llm_module
+    import mysql_db
+    import supabase
 
 load_dotenv(override=True)
 

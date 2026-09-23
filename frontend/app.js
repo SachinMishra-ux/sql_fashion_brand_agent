@@ -3,7 +3,10 @@
    Handles: catalog load, category filters, chat, modal
    ══════════════════════════════════════════════════════════ */
 
-const API_BASE = "http://localhost:8000";
+// Automatically use same-origin relative path in production (e.g. predictoraa.com) and localhost in local dev
+const API_BASE = (window.location.hostname === "localhost" && window.location.port !== "80" && window.location.port !== "443" && window.location.port !== "")
+  ? "http://localhost:8000"
+  : "";
 
 // ── DOM refs ─────────────────────────────────────────────────
 const productGrid    = document.getElementById("product-grid");
