@@ -1,582 +1,656 @@
 #!/usr/bin/env python3
 """
 scripts/generate_architecture_gif.py
-Generates a high-quality, animated GIF demonstrating the live network & data flow
-when hitting the POST /chat endpoint in the Maison Luxé (STELLA) AWS architecture.
+Generates an executive, publication-grade animated GIF visualizing the live network
+and data flow during a POST /chat query in the Maison Luxé (STELLA) AWS production architecture.
 """
 
 from pathlib import Path
 import fitz  # PyMuPDF
 from PIL import Image
 
-WIDTH = 1180
-HEIGHT = 650
+WIDTH = 1380
+HEIGHT = 740
 
-def make_frame_svg(stage: int, packet_pos=None, packet_color="#38bdf8", sub_progress: float = 0.0) -> str:
+def make_pro_frame_svg(stage: int, packet_pos=None, packet_color="#00f0ff", trail_positions=None, step_index: int = 1) -> str:
     """
-    Renders an SVG string for a specific frame in the POST /chat sequence.
-    stage:
-      0: Initial idle / user clicks POST /chat
-      1: Packet moving from Client -> Route 53
-      2: Packet moving from Route 53 -> ALB
-      3: ALB evaluates rule /chat* -> tg-fashion-backend
-      4: Packet moving from ALB -> Backend Task 1
-      5: Backend container processing, CPU rises
-      6: Packet moving Backend -> SenseNova LLM
-      7: SenseNova synthesizing SQL & returning
-      8: Packet moving Backend -> Aiven MySQL
-      9: Aiven MySQL executing SQL & returning 3 rows
-      10: Packet moving Backend -> Supabase Postgres
-      11: Supabase committing checkpoint & returning
-      12: Response returning Backend -> ALB -> Client
-      13: Completed! Response rendered in phone simulator, telemetry updated
+    Renders an ultra-clean, enterprise-grade SVG for a specific animation step.
     """
-    # Active styling flags
-    client_glow = (stage in [0, 1, 12, 13])
-    dns_glow = (stage in [1, 2])
-    alb_glow = (stage in [2, 3, 4, 12])
-    alb_rule_be = (stage >= 3 and stage <= 12)
-    be_glow = (stage in [4, 5, 6, 7, 8, 9, 10, 11, 12])
-    llm_glow = (stage in [6, 7])
-    mysql_glow = (stage in [8, 9])
-    supabase_glow = (stage in [10, 11])
-    
-    # Paths styling
-    wire_client_dns = "#38bdf8" if stage in [1, 2] else "#253349"
-    wire_dns_alb = "#38bdf8" if stage in [2, 3] else "#253349"
-    wire_alb_be = "#c084fc" if stage in [4, 5, 12] else "#253349"
-    wire_be_llm = "#ec4899" if stage in [6, 7] else "#253349"
-    wire_be_mysql = "#10b981" if stage in [8, 9] else "#253349"
-    wire_be_supa = "#2dd4bf" if stage in [10, 11] else "#253349"
+    # Active states
+    is_client_active = (stage in [0, 1, 7, 8])
+    is_dns_active = (stage in [1, 2])
+    is_alb_active = (stage in [2, 3, 7])
+    is_alb_rule_active = (stage >= 2 and stage <= 7)
+    is_be_active = (stage in [3, 4, 5, 6, 7])
+    is_llm_active = (stage == 4)
+    is_mysql_active = (stage == 5)
+    is_supabase_active = (stage == 6)
+    is_completed = (stage == 8)
+
+    # Wire paths colors
+    wire_client_dns = "#00f0ff" if stage in [1, 2] else "#233348"
+    wire_dns_alb = "#00f0ff" if stage in [1, 2] else "#233348"
+    wire_alb_be = "#c084fc" if stage in [3, 7] else "#233348"
+    wire_be_llm = "#f43f5e" if stage == 4 else "#233348"
+    wire_be_mysql = "#10b981" if stage == 5 else "#233348"
+    wire_be_supabase = "#06b6d4" if stage == 6 else "#233348"
 
     # CPU bar
-    if stage in [5, 6, 7, 8, 9, 10]:
-        cpu_width = 46
-        cpu_val = "36%"
-        cpu_color = "#f59e0b"
+    if stage in [4, 5, 6]:
+        cpu_w = 48
+        cpu_text = "38%"
+        cpu_fill = "#f59e0b"
+    elif stage in [7, 8]:
+        cpu_w = 26
+        cpu_text = "20%"
+        cpu_fill = "#10b981"
     else:
-        cpu_width = 24
-        cpu_val = "20%"
-        cpu_color = "#10b981"
+        cpu_w = 22
+        cpu_text = "19%"
+        cpu_fill = "#10b981"
 
-    # Status pill and text
-    if stage <= 1:
-        pill_text = "CLIENT REQ"
-        pill_bg = "#0284c7"
-        status_text = "User sends POST /chat: &quot;Looking for a red silk evening gown under ₹20,000&quot;"
-    elif stage == 2:
-        pill_text = "DNS + SSL"
-        pill_bg = "#0284c7"
-        status_text = "Route 53 resolves predictoraa.com &bull; ACM TLS 1.3 Handshake completed"
-    elif stage == 3:
-        pill_text = "ALB ROUTING"
-        pill_bg = "#8b5cf6"
-        status_text = "ALB matches path &quot;/chat&quot; &rarr; Target Group: tg-fashion-backend (Port 8000)"
-    elif stage in [4, 5]:
-        pill_text = "ECS BACKEND"
-        pill_bg = "#7e22ce"
-        status_text = "FastAPI + LangGraph container activated in private subnet (AZ us-east-1a)"
-    elif stage in [6, 7]:
-        pill_text = "LLM INFERENCE"
-        pill_bg = "#be185d"
-        status_text = "SenseNova LLM parsing styling intent & synthesizing parameterized SQL query"
-    elif stage in [8, 9]:
-        pill_text = "SQL DATABASE"
-        pill_bg = "#047857"
-        status_text = "Executing SQL against Aiven Cloud MySQL: SELECT * FROM products WHERE price &lt;= 20000"
-    elif stage in [10, 11]:
-        pill_text = "SESSION MEMORY"
-        pill_bg = "#0f766e"
-        status_text = "Persisting conversation turn to Supabase PostgreSQL checkpointer (thread_id: usr_01)"
-    elif stage == 12:
-        pill_text = "RESPONSE RETURN"
-        pill_bg = "#0284c7"
-        status_text = "Returning synthesized AI styling recommendation JSON back through ALB to Client"
+    # Latency and Status
+    if stage == 8:
+        latency_str = "842 ms"
+        latency_color = "#10b981"
+        status_str = "200 OK"
+        status_color = "#10b981"
+    elif stage >= 4:
+        latency_str = "448 ms"
+        latency_color = "#38bdf8"
+        status_str = "PROCESSING"
+        status_color = "#f59e0b"
+    elif stage >= 2:
+        latency_str = "28 ms"
+        latency_color = "#38bdf8"
+        status_str = "ROUTING"
+        status_color = "#38bdf8"
     else:
-        pill_text = "COMPLETED 200 OK"
-        pill_bg = "#10b981"
-        status_text = "STELLA AI styling response &amp; live inventory card rendered on client (842ms)"
+        latency_str = "0 ms"
+        latency_color = "#94a3b8"
+        status_str = "PENDING"
+        status_color = "#94a3b8"
 
-    # Telemetry HUD values
-    latency_val = "842 ms" if stage >= 12 else ("310 ms" if stage >= 6 else "48 ms")
-    latency_color = "#10b981" if stage >= 12 else "#38bdf8"
-    http_status = "200 OK" if stage >= 12 else ("PROCESSING" if stage >= 3 else "IDLE")
-    status_color = "#10b981" if stage >= 12 else ("#f59e0b" if stage >= 3 else "#94a3b8")
+    cur_step = step_index
 
-    # Simulator chat content
-    user_bubble_visible = (stage >= 1)
-    ai_typing_visible = (stage >= 3 and stage < 12)
-    ai_response_visible = (stage >= 12)
+    # Status Bar info
+    status_map = {
+        0: ("1. INITIATION", "#0284c7", "Client sends POST /chat: &quot;Looking for a red silk evening gown under ₹20,000 for a gala&quot;"),
+        1: ("2. DNS &amp; TLS", "#0284c7", "Route 53 resolves predictoraa.com &bull; AWS Certificate Manager validates *.predictoraa.com (TLS 1.3)"),
+        2: ("3. ALB INGRESS", "#8b5cf6", "ALB matches path &quot;/chat&quot; &rarr; Rule 1 forwards to Target Group: tg-fashion-backend (Port 8000)"),
+        3: ("4. ECS FARGATE", "#7e22ce", "FastAPI container receives request in Private Subnet (10.0.1.42) &bull; LangGraph agent activated"),
+        4: ("5. SENSENOVA LLM", "#be185d", "SenseNova LLM extracts parameters (Category: Dress, MaxPrice: 20000) &amp; synthesizes SQL query"),
+        5: ("6. AIVEN MYSQL", "#047857", "Executing live inventory query against Aiven Cloud MySQL (Port 16512 TLS) &bull; 3 rows returned (38ms)"),
+        6: ("7. SUPABASE STATE", "#0f766e", "Serializing conversation turn &amp; persisting state checkpoint to Supabase PostgreSQL (thread_id: usr_priya)"),
+        7: ("8. RESPONSE EGRESS", "#0284c7", "Backend returns AI styling payload JSON back through Application Load Balancer to Client"),
+        8: ("9. COMPLETED 200 OK", "#10b981", "Client renders STELLA styling recommendation with Ruby Red Silk Gown &amp; VIP Platinum discount (842ms)")
+    }
+    pill_label, pill_color, status_desc = status_map.get(stage, status_map[0])
 
-    # SVG generation
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" width="{WIDTH}" height="{HEIGHT}" style="background:#0a0e17; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    # Mobile Chat View states
+    show_user_bubble = (stage >= 0)
+    show_typing_indicator = (stage >= 2 and stage <= 6)
+    show_ai_response = (stage >= 7)
+
+    # Render trail dots if present
+    trail_svg = ""
+    if trail_positions:
+        for i, (tx, ty) in enumerate(trail_positions):
+            alpha = (i + 1) / (len(trail_positions) + 1.0)
+            rad = 2.5 + alpha * 3.5
+            trail_svg += f'<circle cx="{tx:.1f}" cy="{ty:.1f}" r="{rad:.1f}" fill="{packet_color}" opacity="{alpha*0.6:.2f}"/>'
+
+    packet_svg = ""
+    if packet_pos:
+        px, py = packet_pos
+        packet_svg = f"""
+        <g>
+          {trail_svg}
+          <circle cx="{px:.1f}" cy="{py:.1f}" r="11" fill="{packet_color}" opacity="0.3" filter="url(#core-glow)"/>
+          <circle cx="{px:.1f}" cy="{py:.1f}" r="6.5" fill="{packet_color}" filter="url(#core-glow)"/>
+          <circle cx="{px:.1f}" cy="{py:.1f}" r="3.5" fill="#ffffff"/>
+        </g>
+        """
+
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" width="{WIDTH}" height="{HEIGHT}" style="background:#090d16; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <defs>
-    <!-- Gradients & Filters -->
-    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#111827"/>
-      <stop offset="100%" stop-color="#1f293d"/>
+    <!-- Gradients -->
+    <linearGradient id="topNavGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#141e33"/>
+      <stop offset="100%" stop-color="#0f172a"/>
     </linearGradient>
 
-    <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#38bdf8" flood-opacity="0.8"/>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#141c2d"/>
+      <stop offset="100%" stop-color="#0e1524"/>
+    </linearGradient>
+
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+
+    <!-- Filters -->
+    <filter id="core-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="{packet_color}" flood-opacity="0.9"/>
     </filter>
-    <filter id="glow-purple" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#c084fc" flood-opacity="0.8"/>
+
+    <filter id="box-cyan" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#00f0ff" flood-opacity="0.6"/>
     </filter>
-    <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#10b981" flood-opacity="0.8"/>
+
+    <filter id="box-purple" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#c084fc" flood-opacity="0.6"/>
     </filter>
-    <filter id="glow-pink" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#ec4899" flood-opacity="0.8"/>
+
+    <filter id="box-green" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#10b981" flood-opacity="0.6"/>
+    </filter>
+
+    <filter id="box-pink" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#f43f5e" flood-opacity="0.6"/>
     </filter>
   </defs>
 
-  <!-- TOP HEADER -->
-  <rect x="0" y="0" width="{WIDTH}" height="56" fill="url(#headerGrad)" stroke="#1f2937" stroke-width="1"/>
+  <!-- ==================== HEADER BAR ==================== -->
+  <rect x="0" y="0" width="{WIDTH}" height="60" fill="url(#topNavGrad)" stroke="#1e293b" stroke-width="1"/>
   
-  <!-- Logo Icon -->
-  <rect x="18" y="10" width="36" height="36" rx="8" fill="#d97706"/>
-  <text x="36" y="34" fill="#ffffff" font-size="18" font-weight="900" text-anchor="middle">S</text>
+  <!-- Brand Icon -->
+  <rect x="18" y="11" width="38" height="38" rx="8" fill="url(#goldGrad)"/>
+  <text x="37" y="36" fill="#ffffff" font-size="20" font-weight="900" text-anchor="middle">M</text>
 
-  <!-- Title & Subtitle -->
-  <text x="66" y="27" fill="#ffffff" font-size="15" font-weight="700">STELLA AI Fashion Brand Agent <tspan fill="#94a3b8" font-size="12" font-weight="normal">| AWS Production Flow: POST /chat</tspan></text>
-  <text x="66" y="44" fill="#64748b" font-size="10.5" font-family="monospace">Route 53 &bull; ALB (Path-Based Routing) &bull; ECS Fargate &bull; SenseNova LLM &bull; Aiven MySQL &bull; Supabase</text>
+  <!-- Title & Meta -->
+  <text x="68" y="28" fill="#ffffff" font-size="15" font-weight="800" letter-spacing="-0.3">MAISON LUXÉ <tspan fill="#f59e0b">// STELLA AI</tspan> <tspan fill="#94a3b8" font-size="12" font-weight="500">| AWS Live Traffic Trace: POST /chat</tspan></text>
+  <text x="68" y="46" fill="#64748b" font-size="10.5" font-family="monospace">Topology: Route 53 &bull; ALB (Dual-AZ) &bull; ECS Fargate Serverless &bull; SenseNova LLM &bull; Aiven MySQL &bull; Supabase</text>
 
-  <!-- Live Domain Pill -->
-  <rect x="980" y="14" width="180" height="28" rx="14" fill="#064e3b" stroke="#10b981" stroke-width="1"/>
-  <circle cx="996" cy="28" r="4.5" fill="#34d399"/>
-  <text x="1008" y="32" fill="#34d399" font-size="10.5" font-family="monospace" font-weight="700">LIVE: predictoraa.com</text>
+  <!-- Badges Top Right -->
+  <g transform="translate(860, 15)">
+    <rect width="130" height="28" rx="6" fill="#131d2e" stroke="#334155" stroke-width="1"/>
+    <circle cx="14" cy="14" r="3.5" fill="#10b981"/>
+    <text x="24" y="18" fill="#cbd5e1" font-size="10" font-family="monospace" font-weight="600">us-east-1a OK</text>
+  </g>
 
-  <!-- CONTROLS SUB-HEADER -->
-  <rect x="0" y="56" width="{WIDTH}" height="38" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
-  <text x="18" y="79" fill="#94a3b8" font-size="10.5" font-weight="700">ACTIVE FLOW:</text>
+  <g transform="translate(1000, 15)">
+    <rect width="175" height="28" rx="6" fill="#064e3b" stroke="#10b981" stroke-width="1"/>
+    <text x="14" y="18" fill="#34d399" font-size="10.5" font-family="monospace" font-weight="700">🔒 predictoraa.com</text>
+  </g>
+
+  <g transform="translate(1185, 15)">
+    <rect width="175" height="28" rx="6" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+    <text x="12" y="18" fill="#c7d2fe" font-size="10" font-weight="700">👑 Priya (VIP Platinum)</text>
+  </g>
+
+  <!-- ==================== SUB-HEADER: ARCHITECTURAL PIPELINE BREADCRUMB ==================== -->
+  <rect x="0" y="60" width="{WIDTH}" height="36" fill="#0b101c" stroke="#1e293b" stroke-width="1"/>
   
-  <!-- Inactive GET Button -->
-  <rect x="110" y="62" width="135" height="25" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
-  <text x="177" y="78" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="middle">🌐 Browse UI (GET /)</text>
+  <g transform="translate(18, 68)" font-size="10" font-weight="600">
+    <text x="0" y="14" fill="#64748b" font-weight="700">PIPELINE:</text>
+    
+    <text x="70" y="14" fill="{'#00f0ff' if cur_step==1 else '#64748b'}" font-weight="{'800' if cur_step==1 else '600'}">1. Client Request</text>
+    <text x="175" y="14" fill="#334155">&rarr;</text>
+    
+    <text x="195" y="14" fill="{'#00f0ff' if cur_step==2 else '#64748b'}" font-weight="{'800' if cur_step==2 else '600'}">2. Route 53 / SSL</text>
+    <text x="305" y="14" fill="#334155">&rarr;</text>
+    
+    <text x="325" y="14" fill="{'#c084fc' if cur_step==3 else '#64748b'}" font-weight="{'800' if cur_step==3 else '600'}">3. ALB Path Routing</text>
+    <text x="445" y="14" fill="#334155">&rarr;</text>
+    
+    <text x="465" y="14" fill="{'#c084fc' if cur_step==4 else '#64748b'}" font-weight="{'800' if cur_step==4 else '600'}">4. ECS Fargate Backend</text>
+    <text x="595" y="14" fill="#334155">&rarr;</text>
+    
+    <text x="615" y="14" fill="{'#f43f5e' if cur_step==5 else '#64748b'}" font-weight="{'800' if cur_step==5 else '600'}">5. SenseNova LLM</text>
+    <text x="730" y="14" fill="#334155">&rarr;</text>
+    
+    <text x="750" y="14" fill="{'#10b981' if cur_step==6 else '#64748b'}" font-weight="{'800' if cur_step==6 else '600'}">6. Aiven MySQL</text>
+    <text x="840" y="14" fill="#334155">&rarr;</text>
+    
+    <text x="860" y="14" fill="{'#06b6d4' if cur_step==7 else '#64748b'}" font-weight="{'800' if cur_step==7 else '600'}">7. Supabase Memory</text>
+    <text x="980" y="14" fill="#334155">&rarr;</text>
+    
+    <text x="1000" y="14" fill="{'#10b981' if cur_step==8 else '#64748b'}" font-weight="{'800' if cur_step==8 else '600'}">8. Response 200 OK</text>
+  </g>
 
-  <!-- Active POST /chat Button -->
-  <rect x="255" y="62" width="220" height="25" rx="5" fill="#2563eb" stroke="#38bdf8" stroke-width="1.5"/>
-  <text x="365" y="78" fill="#ffffff" font-size="10" font-weight="700" text-anchor="middle">💬 AI Chat: Evening Gowns (POST /chat)</text>
-
-  <!-- Clear History Button -->
-  <rect x="485" y="62" width="170" height="25" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
-  <text x="570" y="78" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="middle">🗑️ Clear Chat (DELETE /chat)</text>
-
-  <!-- Stress Test Button -->
-  <rect x="665" y="62" width="125" height="25" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
-  <text x="727" y="78" fill="#94a3b8" font-size="10" font-weight="600" text-anchor="middle">⚡ Stress Test</text>
-
-  <!-- ==================== MAIN ARCHITECTURE CANVAS (LEFT) ==================== -->
+  <!-- ==================== LEFT ARCHITECTURE CANVAS (VPC & CLOUD) ==================== -->
   
-  <!-- VPC Outer Box -->
-  <rect x="235" y="105" width="575" height="495" rx="12" fill="#090d16" stroke="#334155" stroke-dasharray="4 4" stroke-width="1"/>
-  <text x="250" y="124" fill="#64748b" font-size="10" font-family="monospace" font-weight="700">AWS VPC (10.0.0.0/16) - us-east-1</text>
+  <!-- Outer VPC Perimeter Box -->
+  <rect x="18" y="106" width="875" height="576" rx="12" fill="#090d16" stroke="#25354c" stroke-dasharray="5 4" stroke-width="1.2"/>
+  <rect x="30" y="96" width="220" height="20" rx="4" fill="#131d2e" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="110" fill="#94a3b8" font-size="9.5" font-family="monospace" font-weight="700">AWS VPC (10.0.0.0/16) - us-east-1</text>
 
-  <!-- ECS Cluster Box -->
-  <rect x="400" y="140" width="225" height="435" rx="10" fill="#0d1424" stroke="#f59e0b" stroke-dasharray="5 3" stroke-width="1.2"/>
-  <text x="415" y="160" fill="#f59e0b" font-size="10" font-weight="700">AWS ECS Cluster (fashion-agent-cluster)</text>
-  <text x="415" y="173" fill="#64748b" font-size="8.5" font-family="monospace">AWS Fargate Serverless</text>
+  <!-- ECS Cluster Boundary Box -->
+  <rect x="365" y="135" width="265" height="525" rx="10" fill="#0b1220" stroke="#f59e0b" stroke-dasharray="6 3" stroke-width="1.2"/>
+  <rect x="375" y="125" width="225" height="20" rx="4" fill="#1c160c" stroke="#f59e0b" stroke-width="1"/>
+  <text x="385" y="139" fill="#f59e0b" font-size="9.5" font-weight="700">AWS ECS (fashion-agent-cluster)</text>
 
-  <!-- WIRE PATHS -->
-  <!-- 1. Client to Route 53 -->
-  <path d="M 85 240 L 130 240" fill="none" stroke="{wire_client_dns}" stroke-width="3" stroke-linecap="round"/>
+  <!-- ==================== CONNECTOR PATHS ==================== -->
+  <!-- Path: Client -> Route 53 -->
+  <path d="M 98 245 L 140 245" fill="none" stroke="{wire_client_dns}" stroke-width="3" stroke-linecap="round"/>
   
-  <!-- 2. Route 53 to ALB -->
-  <path d="M 195 240 L 255 240" fill="none" stroke="{wire_dns_alb}" stroke-width="3" stroke-linecap="round"/>
+  <!-- Path: Route 53 -> ALB -->
+  <path d="M 215 245 L 255 245" fill="none" stroke="{wire_dns_alb}" stroke-width="3" stroke-linecap="round"/>
 
-  <!-- 3A. ALB to Frontend (inactive during POST /chat) -->
-  <path d="M 335 225 C 365 225, 375 205, 415 205" fill="none" stroke="#1f293d" stroke-width="2"/>
+  <!-- Path: ALB -> Frontend (Idle during POST /chat) -->
+  <path d="M 345 225 C 365 225, 375 200, 385 200" fill="none" stroke="#1c2637" stroke-width="2"/>
 
-  <!-- 3B. ALB to Backend (ACTIVE) -->
-  <path d="M 335 255 C 365 255, 380 320, 415 320" fill="none" stroke="{wire_alb_be}" stroke-width="3" stroke-linecap="round"/>
+  <!-- Path: ALB -> Backend Task 1 (Active) -->
+  <path d="M 345 255 C 365 255, 375 315, 385 315" fill="none" stroke="{wire_alb_be}" stroke-width="3.5" stroke-linecap="round"/>
 
-  <!-- 4A. Backend to SenseNova LLM -->
-  <path d="M 610 300 C 655 300, 675 185, 695 185" fill="none" stroke="{wire_be_llm}" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- Path: Backend -> SenseNova LLM -->
+  <path d="M 610 295 C 655 295, 680 195, 715 195" fill="none" stroke="{wire_be_llm}" stroke-width="3" stroke-linecap="round"/>
 
-  <!-- 4B. Backend to Aiven MySQL -->
-  <path d="M 610 325 C 655 325, 675 315, 695 315" fill="none" stroke="{wire_be_mysql}" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- Path: Backend -> Aiven MySQL -->
+  <path d="M 610 325 C 655 325, 680 325, 715 325" fill="none" stroke="{wire_be_mysql}" stroke-width="3" stroke-linecap="round"/>
 
-  <!-- 4C. Backend to Supabase Postgres -->
-  <path d="M 610 350 C 655 350, 675 440, 695 440" fill="none" stroke="{wire_be_supa}" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- Path: Backend -> Supabase Postgres -->
+  <path d="M 610 355 C 655 355, 680 455, 715 455" fill="none" stroke="{wire_be_supabase}" stroke-width="3" stroke-linecap="round"/>
 
   <!-- ==================== ARCHITECTURE NODES ==================== -->
 
   <!-- 1. Client Node -->
-  <g transform="translate(18, 195)" {"filter='url(#glow-cyan)'" if client_glow else ""}>
-    <rect width="68" height="90" rx="8" fill="#131d2e" stroke="{'#38bdf8' if client_glow else '#334155'}" stroke-width="{'2' if client_glow else '1'}"/>
-    <rect width="68" height="20" rx="7" fill="#0284c7"/>
-    <text x="34" y="14" fill="#ffffff" font-size="8.5" font-weight="700" text-anchor="middle">CLIENT</text>
-    <text x="34" y="38" fill="#f8fafc" font-size="9" font-weight="600" text-anchor="middle">Browser</text>
-    <text x="34" y="52" fill="#94a3b8" font-size="7.5" font-family="monospace" text-anchor="middle">predictoraa</text>
-    <text x="34" y="65" fill="#38bdf8" font-size="7" font-weight="600" text-anchor="middle">HTTPS 443</text>
-    <text x="34" y="78" fill="#{'#34d399' if client_glow else '#64748b'}" font-size="7" font-weight="700" text-anchor="middle">● POST</text>
+  <g transform="translate(30, 195)" {"filter='url(#box-cyan)'" if is_client_active else ""}>
+    <rect width="68" height="100" rx="8" fill="url(#cardGrad)" stroke="{'#00f0ff' if is_client_active else '#334155'}" stroke-width="{'2' if is_client_active else '1'}"/>
+    <rect width="68" height="22" rx="7" fill="#0284c7"/>
+    <text x="34" y="15" fill="#ffffff" font-size="9" font-weight="800" text-anchor="middle">CLIENT</text>
+    <text x="34" y="42" fill="#f8fafc" font-size="9.5" font-weight="700" text-anchor="middle">Browser</text>
+    <text x="34" y="58" fill="#94a3b8" font-size="7.5" font-family="monospace" text-anchor="middle">predictoraa</text>
+    <text x="34" y="72" fill="#38bdf8" font-size="7" font-weight="600" text-anchor="middle">Port 443 HTTPS</text>
+    <rect x="7" y="80" width="54" height="14" rx="3" fill="#1e293b"/>
+    <text x="34" y="90" fill="#10b981" font-size="7" font-weight="700" font-family="monospace" text-anchor="middle">POST /chat</text>
   </g>
 
   <!-- 2. Route 53 + ACM Node -->
-  <g transform="translate(130, 195)" {"filter='url(#glow-cyan)'" if dns_glow else ""}>
-    <rect width="65" height="90" rx="8" fill="#131d2e" stroke="{'#38bdf8' if dns_glow else '#334155'}" stroke-width="{'2' if dns_glow else '1'}"/>
-    <rect width="65" height="20" rx="7" fill="#1e293b"/>
-    <text x="32" y="14" fill="#38bdf8" font-size="7.5" font-weight="700" text-anchor="middle">ROUTE 53</text>
-    <text x="32" y="38" fill="#f8fafc" font-size="8.5" font-weight="600" text-anchor="middle">DNS Alias</text>
-    <text x="32" y="52" fill="#94a3b8" font-size="7" font-family="monospace" text-anchor="middle">ACM SSL</text>
-    <text x="32" y="66" fill="#10b981" font-size="7" font-weight="600" text-anchor="middle">TLS 1.3 OK</text>
-    <text x="32" y="78" fill="#64748b" font-size="6.5" text-anchor="middle">*.predictoraa</text>
+  <g transform="translate(140, 195)" {"filter='url(#box-cyan)'" if is_dns_active else ""}>
+    <rect width="75" height="100" rx="8" fill="url(#cardGrad)" stroke="{'#00f0ff' if is_dns_active else '#334155'}" stroke-width="{'2' if is_dns_active else '1'}"/>
+    <rect width="75" height="22" rx="7" fill="#1e293b"/>
+    <text x="37" y="15" fill="#38bdf8" font-size="8.5" font-weight="800" text-anchor="middle">ROUTE 53</text>
+    <text x="37" y="42" fill="#f8fafc" font-size="9" font-weight="700" text-anchor="middle">DNS Alias</text>
+    <text x="37" y="56" fill="#94a3b8" font-size="7.5" font-family="monospace" text-anchor="middle">ACM SSL</text>
+    <text x="37" y="70" fill="#10b981" font-size="7.5" font-weight="600" text-anchor="middle">TLS 1.3 Certified</text>
+    <text x="37" y="85" fill="#64748b" font-size="7" text-anchor="middle">*.predictoraa</text>
   </g>
 
   <!-- 3. ALB Node -->
-  <g transform="translate(245, 180)" {"filter='url(#glow-cyan)'" if alb_glow else ""}>
-    <rect width="90" height="120" rx="8" fill="#131d2e" stroke="{'#38bdf8' if alb_glow else '#334155'}" stroke-width="{'2' if alb_glow else '1'}"/>
-    <rect width="90" height="20" rx="7" fill="#0284c7"/>
-    <text x="45" y="14" fill="#ffffff" font-size="8.5" font-weight="700" text-anchor="middle">AWS ALB</text>
-    <text x="45" y="36" fill="#f8fafc" font-size="8.5" font-weight="700" text-anchor="middle">alb-fashion</text>
+  <g transform="translate(255, 175)" {"filter='url(#box-purple)'" if is_alb_active else ""}>
+    <rect width="90" height="135" rx="8" fill="url(#cardGrad)" stroke="{'#c084fc' if is_alb_active else '#334155'}" stroke-width="{'2' if is_alb_active else '1'}"/>
+    <rect width="90" height="22" rx="7" fill="#0284c7"/>
+    <text x="45" y="15" fill="#ffffff" font-size="9" font-weight="800" text-anchor="middle">AWS ALB</text>
+    <text x="45" y="40" fill="#f8fafc" font-size="9" font-weight="700" text-anchor="middle">alb-fashion</text>
     
-    <!-- Rule Box 1: Frontend Default -->
-    <rect x="5" y="44" width="80" height="18" rx="3" fill="#090d16" stroke="#1e293b"/>
-    <text x="8" y="56" fill="#64748b" font-size="7" font-family="monospace">/* &rarr; TG:FE (80)</text>
+    <!-- Rule 1: Frontend -->
+    <rect x="5" y="48" width="80" height="18" rx="3" fill="#0a0f18" stroke="#1e293b"/>
+    <text x="8" y="60" fill="#64748b" font-size="7" font-family="monospace">/* &rarr; TG:FE:80</text>
 
-    <!-- Rule Box 2: Backend Chat (HIGHLIGHTED) -->
-    <rect x="5" y="66" width="80" height="22" rx="3" fill="{'#2e1065' if alb_rule_be else '#090d16'}" stroke="{'#c084fc' if alb_rule_be else '#1e293b'}" stroke-width="{'1.5' if alb_rule_be else '1'}"/>
-    <text x="8" y="80" fill="{'#e9d5ff' if alb_rule_be else '#94a3b8'}" font-size="7" font-family="monospace" font-weight="700">/chat* &rarr; BE:8000</text>
+    <!-- Rule 2: Backend Chat (DYNAMIC MATCH) -->
+    <rect x="5" y="72" width="80" height="26" rx="4" fill="{'#2c154a' if is_alb_rule_active else '#0a0f18'}" stroke="{'#c084fc' if is_alb_rule_active else '#1e293b'}" stroke-width="{'1.5' if is_alb_rule_active else '1'}"/>
+    <text x="8" y="84" fill="{'#e9d5ff' if is_alb_rule_active else '#94a3b8'}" font-size="7" font-family="monospace" font-weight="700">/chat* &rarr; BE:8000</text>
+    <text x="8" y="94" fill="{'#38bdf8' if is_alb_rule_active else '#64748b'}" font-size="6.5" font-family="monospace">Rule 1 Matched</text>
 
-    <text x="45" y="105" fill="#10b981" font-size="7" font-weight="600" text-anchor="middle">✓ Dual-AZ OK</text>
+    <text x="45" y="118" fill="#10b981" font-size="7" font-weight="600" text-anchor="middle">● Dual-AZ Health: OK</text>
   </g>
 
   <!-- 4A. Frontend Task (Nginx) -->
-  <g transform="translate(415, 175)">
-    <rect width="195" height="60" rx="6" fill="#111827" stroke="#334155" stroke-width="1"/>
-    <rect width="195" height="16" rx="5" fill="#0369a1"/>
-    <text x="97" y="12" fill="#ffffff" font-size="8" font-weight="700" text-anchor="middle">fashion-frontend-service</text>
-    <text x="10" y="31" fill="#38bdf8" font-size="8" font-weight="600">Container: Nginx (Alpine) :80</text>
-    <text x="10" y="44" fill="#64748b" font-size="7.5">Serves: Luxury Catalog Static UI</text>
-    <text x="10" y="54" fill="#10b981" font-size="7">Avg Latency: 12ms</text>
+  <g transform="translate(385, 160)">
+    <rect width="225" height="70" rx="8" fill="#0d1424" stroke="#25354c" stroke-width="1"/>
+    <rect width="225" height="18" rx="7" fill="#0369a1"/>
+    <text x="112" y="13" fill="#ffffff" font-size="8.5" font-weight="700" text-anchor="middle">fashion-frontend-service (Port 80)</text>
+    <text x="10" y="34" fill="#38bdf8" font-size="8.5" font-weight="700">Container: Nginx Alpine (Public Proxy)</text>
+    <text x="10" y="47" fill="#64748b" font-size="7.5">Serves: Luxury Catalog HTML5, CSS3, React Bundle</text>
+    <text x="10" y="60" fill="#10b981" font-size="7.5" font-weight="600">Private Subnet: 10.0.1.12 &bull; Latency: 12ms</text>
   </g>
 
   <!-- 4B. Backend Task 1 (FastAPI + LangGraph) ACTIVE -->
-  <g transform="translate(415, 260)" {"filter='url(#glow-purple)'" if be_glow else ""}>
-    <rect width="195" height="95" rx="6" fill="#16122a" stroke="{'#c084fc' if be_glow else '#334155'}" stroke-width="{'2' if be_glow else '1'}"/>
-    <rect width="195" height="18" rx="5" fill="#7e22ce"/>
-    <text x="97" y="13" fill="#ffffff" font-size="8.5" font-weight="700" text-anchor="middle">fashion-backend-service (Task 1)</text>
-    <text x="10" y="34" fill="#c084fc" font-size="8.5" font-weight="700">FastAPI + LangGraph (:8000)</text>
-    <text x="10" y="47" fill="#cbd5e1" font-size="7.5">SQL Agent &bull; Intent Router &bull; Memory</text>
+  <g transform="translate(385, 255)" {"filter='url(#box-purple)'" if is_be_active else ""}>
+    <rect width="225" height="120" rx="8" fill="#151128" stroke="{'#c084fc' if is_be_active else '#334155'}" stroke-width="{'2' if is_be_active else '1'}"/>
+    <rect width="225" height="20" rx="7" fill="#7e22ce"/>
+    <text x="112" y="14" fill="#ffffff" font-size="9" font-weight="800" text-anchor="middle">fashion-backend-service (Task 1)</text>
+    <text x="10" y="36" fill="#c084fc" font-size="9" font-weight="800">FastAPI + LangGraph Agent (:8000)</text>
+    <text x="10" y="50" fill="#cbd5e1" font-size="7.5">Modules: JWT Auth &bull; SQL Agent Tool &bull; Checkpoints</text>
     
-    <!-- CPU Meter -->
-    <rect x="10" y="55" width="110" height="7" rx="3.5" fill="#1e293b"/>
-    <rect x="10" y="55" width="{cpu_width}" height="7" rx="3.5" fill="{cpu_color}"/>
-    <text x="126" y="62" fill="#94a3b8" font-size="7.5" font-family="monospace">CPU: {cpu_val}</text>
-    <text x="10" y="77" fill="#10b981" font-size="7.5" font-weight="600">Health: Healthy (HTTP 200)</text>
-    <text x="10" y="88" fill="#38bdf8" font-size="7" font-family="monospace">Private Subnet: 10.0.1.42</text>
+    <!-- CPU Usage Meter -->
+    <text x="10" y="65" fill="#94a3b8" font-size="7.5">Fargate CPU Usage:</text>
+    <rect x="95" y="58" width="90" height="7" rx="3.5" fill="#1e293b"/>
+    <rect x="95" y="58" width="{cpu_w}" height="7" rx="3.5" fill="{cpu_fill}"/>
+    <text x="192" y="65" fill="#ffffff" font-size="7.5" font-family="monospace">{cpu_text}</text>
+
+    <!-- Subnet & IP Info -->
+    <text x="10" y="82" fill="#38bdf8" font-size="7.5" font-family="monospace">Subnet: 10.0.1.42 (us-east-1a) &bull; 0.5 vCPU / 1GB</text>
+    
+    <rect x="10" y="92" width="205" height="18" rx="4" fill="#221938" stroke="#4c1d95"/>
+    <text x="14" y="104" fill="#34d399" font-size="7" font-family="monospace">● TaskID: ecs-task-8a9f2 (HEALTHY 200)</text>
   </g>
 
   <!-- 4C. Backend Task 2 (Auto-Scaling Replica - Standby) -->
-  <g transform="translate(415, 380)" opacity="0.4">
-    <rect width="195" height="65" rx="6" fill="#111827" stroke="#475569" stroke-dasharray="3 3" stroke-width="1"/>
-    <rect width="195" height="16" rx="5" fill="#4c1d95"/>
-    <text x="97" y="12" fill="#e9d5ff" font-size="8" font-weight="700" text-anchor="middle">fashion-backend-service (Task 2)</text>
-    <text x="10" y="32" fill="#94a3b8" font-size="8">Replica: Auto-Scaling Standby</text>
-    <text x="10" y="45" fill="#64748b" font-size="7.5">Target Tracking: CPU &gt; 70%</text>
-    <text x="10" y="56" fill="#64748b" font-size="7">DesiredCount: 1 (Min: 1, Max: 3)</text>
+  <g transform="translate(385, 395)" opacity="0.45">
+    <rect width="225" height="75" rx="8" fill="#0d1424" stroke="#475569" stroke-dasharray="3 3" stroke-width="1"/>
+    <rect width="225" height="18" rx="7" fill="#4c1d95"/>
+    <text x="112" y="13" fill="#e9d5ff" font-size="8.5" font-weight="700" text-anchor="middle">fashion-backend-service (Task 2 Replica)</text>
+    <text x="10" y="34" fill="#94a3b8" font-size="8">Auto-Scaling Policy: Target Tracking (CPU &gt; 70%)</text>
+    <text x="10" y="48" fill="#64748b" font-size="7.5">DesiredCount: 1 &bull; MinCapacity: 1 &bull; MaxCapacity: 3</text>
+    <text x="10" y="62" fill="#64748b" font-size="7" font-family="monospace">Standby Mode (Subnet us-east-1b)</text>
   </g>
 
   <!-- 5A. SenseNova LLM Node -->
-  <g transform="translate(695, 150)" {"filter='url(#glow-pink)'" if llm_glow else ""}>
-    <rect width="110" height="70" rx="8" fill="#1f1122" stroke="{'#ec4899' if llm_glow else '#334155'}" stroke-width="{'2' if llm_glow else '1'}"/>
-    <rect width="110" height="18" rx="7" fill="#be185d"/>
-    <text x="55" y="13" fill="#ffffff" font-size="8" font-weight="700" text-anchor="middle">SenseNova LLM</text>
-    <text x="8" y="33" fill="#f472b6" font-size="8" font-weight="700">SenseChat-5</text>
-    <text x="8" y="45" fill="#94a3b8" font-size="7" font-family="monospace">HTTPS External</text>
-    <text x="8" y="56" fill="#cbd5e1" font-size="7">Intent + SQL Gen</text>
-    <text x="8" y="65" fill="#10b981" font-size="6.5">Latency: 410ms</text>
+  <g transform="translate(715, 150)" {"filter='url(#box-pink)'" if is_llm_active else ""}>
+    <rect width="165" height="90" rx="8" fill="#1b0f1a" stroke="{'#f43f5e' if is_llm_active else '#334155'}" stroke-width="{'2' if is_llm_active else '1'}"/>
+    <rect width="165" height="20" rx="7" fill="#be185d"/>
+    <text x="82" y="14" fill="#ffffff" font-size="9" font-weight="800" text-anchor="middle">SenseNova LLM API</text>
+    <text x="10" y="35" fill="#f472b6" font-size="9" font-weight="700">SenseChat-5 (128k)</text>
+    <text x="10" y="48" fill="#94a3b8" font-size="7.5" font-family="monospace">HTTPS External Gateway</text>
+    <text x="10" y="60" fill="#cbd5e1" font-size="7.5">Intent + Parameterized SQL Synthesis</text>
+    
+    <rect x="8" y="68" width="149" height="16" rx="3" fill="#2d1326"/>
+    <text x="12" y="79" fill="#fda4af" font-size="7" font-family="monospace">SQL: category='Dress' &amp; price&lt;=20k</text>
   </g>
 
-  <!-- 5B. Aiven MySQL Node -->
-  <g transform="translate(695, 280)" {"filter='url(#glow-green)'" if mysql_glow else ""}>
-    <rect width="110" height="75" rx="8" fill="#0d231a" stroke="{'#10b981' if mysql_glow else '#334155'}" stroke-width="{'2' if mysql_glow else '1'}"/>
-    <rect width="110" height="18" rx="7" fill="#047857"/>
-    <text x="55" y="13" fill="#ffffff" font-size="8" font-weight="700" text-anchor="middle">Aiven Cloud MySQL</text>
-    <text x="8" y="33" fill="#34d399" font-size="8" font-weight="700">Catalog &amp; Inventory</text>
-    <text x="8" y="45" fill="#94a3b8" font-size="7" font-family="monospace">Port 16512 (TLS)</text>
-    <text x="8" y="56" fill="#cbd5e1" font-size="7">Stock, Sizes, Prices</text>
-    <text x="8" y="67" fill="#10b981" font-size="6.5">SQL Query: 38ms</text>
+  <!-- 5B. Aiven Cloud MySQL Node -->
+  <g transform="translate(715, 275)" {"filter='url(#box-green)'" if is_mysql_active else ""}>
+    <rect width="165" height="100" rx="8" fill="#0d1f18" stroke="{'#10b981' if is_mysql_active else '#334155'}" stroke-width="{'2' if is_mysql_active else '1'}"/>
+    <rect width="165" height="20" rx="7" fill="#047857"/>
+    <text x="82" y="14" fill="#ffffff" font-size="9" font-weight="800" text-anchor="middle">Aiven Cloud MySQL</text>
+    <text x="10" y="36" fill="#34d399" font-size="9" font-weight="700">Catalog &amp; Inventory DB</text>
+    <text x="10" y="49" fill="#94a3b8" font-size="7.5" font-family="monospace">Port 16512 (TLS Encrypted)</text>
+    <text x="10" y="62" fill="#cbd5e1" font-size="7.5">Products, Stock, Sizes, Prices</text>
+    
+    <rect x="8" y="72" width="149" height="20" rx="3" fill="#132c22"/>
+    <text x="12" y="85" fill="#6ee7b7" font-size="7" font-family="monospace">Returned: 3 rows &bull; Latency: 38ms</text>
   </g>
 
-  <!-- 5C. Supabase Postgres Node -->
-  <g transform="translate(695, 405)" {"filter='url(#glow-green)'" if supabase_glow else ""}>
-    <rect width="110" height="75" rx="8" fill="#0c1f20" stroke="{'#2dd4bf' if supabase_glow else '#334155'}" stroke-width="{'2' if supabase_glow else '1'}"/>
-    <rect width="110" height="18" rx="7" fill="#0f766e"/>
-    <text x="55" y="13" fill="#ffffff" font-size="8" font-weight="700" text-anchor="middle">Supabase Postgres</text>
-    <text x="8" y="33" fill="#2dd4bf" font-size="8" font-weight="700">Memory Checkpoint</text>
-    <text x="8" y="45" fill="#94a3b8" font-size="7" font-family="monospace">Port 5432 (Pooler)</text>
-    <text x="8" y="56" fill="#cbd5e1" font-size="7">Multi-Turn History</text>
-    <text x="8" y="67" fill="#38bdf8" font-size="6.5">Thread: usr_fashion_01</text>
+  <!-- 5C. Supabase PostgreSQL Node -->
+  <g transform="translate(715, 410)" {"filter='url(#box-cyan)'" if is_supabase_active else ""}>
+    <rect width="165" height="95" rx="8" fill="#0c1d22" stroke="{'#06b6d4' if is_supabase_active else '#334155'}" stroke-width="{'2' if is_supabase_active else '1'}"/>
+    <rect width="165" height="20" rx="7" fill="#0f766e"/>
+    <text x="82" y="14" fill="#ffffff" font-size="9" font-weight="800" text-anchor="middle">Supabase PostgreSQL</text>
+    <text x="10" y="36" fill="#2dd4bf" font-size="9" font-weight="700">LangGraph Checkpointer</text>
+    <text x="10" y="49" fill="#94a3b8" font-size="7.5" font-family="monospace">Port 5432 (Session Pooler)</text>
+    <text x="10" y="62" fill="#cbd5e1" font-size="7.5">Multi-Turn Thread Isolation</text>
+    
+    <rect x="8" y="70" width="149" height="18" rx="3" fill="#132a30"/>
+    <text x="12" y="82" fill="#67e8f9" font-size="7" font-family="monospace">Commit checkpoint: thread_usr_01</text>
   </g>
 
-  <!-- MOVING PACKET DOT -->
-  {f'<circle cx="{packet_pos[0]}" cy="{packet_pos[1]}" r="6.5" fill="{packet_color}" filter="url(#glow-cyan)"/>' if packet_pos else ''}
+  <!-- Dynamic Moving Packet Element -->
+  {packet_svg}
 
-  <!-- ==================== RIGHT SIDE PANEL (SIMULATOR + LOGS) ==================== -->
+  <!-- ==================== RIGHT SIDE PANEL (PHONE & LOGS) ==================== -->
   
   <!-- Right Container Border -->
-  <rect x="825" y="105" width="340" height="495" rx="10" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+  <rect x="910" y="106" width="452" height="576" rx="12" fill="#0d1424" stroke="#1e293b" stroke-width="1"/>
 
-  <!-- Telemetry HUD Bar (Top of Right Panel) -->
-  <rect x="835" y="115" width="155" height="44" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
-  <text x="845" y="130" fill="#94a3b8" font-size="8" font-weight="700">ALB RESPONSE LATENCY</text>
-  <text x="845" y="148" fill="{latency_color}" font-size="14" font-weight="800" font-family="monospace">{latency_val}</text>
+  <!-- Telemetry HUD Bar (Top Right) -->
+  <g transform="translate(922, 116)">
+    <rect width="102" height="46" rx="6" fill="#141d2f" stroke="#334155" stroke-width="1"/>
+    <text x="10" y="15" fill="#94a3b8" font-size="7.5" font-weight="700">TOTAL LATENCY</text>
+    <text x="10" y="35" fill="{latency_color}" font-size="14" font-weight="900" font-family="monospace">{latency_str}</text>
 
-  <rect x="1000" y="115" width="155" height="44" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
-  <text x="1010" y="130" fill="#94a3b8" font-size="8" font-weight="700">HTTP STATUS</text>
-  <text x="1010" y="148" fill="{status_color}" font-size="14" font-weight="800" font-family="monospace">{http_status}</text>
+    <rect x="110" y="0" width="102" height="46" rx="6" fill="#141d2f" stroke="#334155" stroke-width="1"/>
+    <text x="120" y="15" fill="#94a3b8" font-size="7.5" font-weight="700">STATUS CODE</text>
+    <text x="120" y="35" fill="{status_color}" font-size="14" font-weight="900" font-family="monospace">{status_str}</text>
+
+    <rect x="220" y="0" width="102" height="46" rx="6" fill="#141d2f" stroke="#334155" stroke-width="1"/>
+    <text x="230" y="15" fill="#94a3b8" font-size="7.5" font-weight="700">BACKEND CPU</text>
+    <text x="230" y="35" fill="{cpu_fill}" font-size="14" font-weight="900" font-family="monospace">{cpu_text}</text>
+
+    <rect x="330" y="0" width="98" height="46" rx="6" fill="#141d2f" stroke="#334155" stroke-width="1"/>
+    <text x="340" y="15" fill="#94a3b8" font-size="7.5" font-weight="700">FARGATE TASKS</text>
+    <text x="340" y="35" fill="#38bdf8" font-size="14" font-weight="900" font-family="monospace">2 Active</text>
+  </g>
 
   <!-- Smartphone Mockup Frame -->
-  <rect x="835" y="168" width="320" height="280" rx="12" fill="#0b0f17" stroke="#334155" stroke-width="1.2"/>
-  
-  <!-- Phone Header -->
-  <rect x="835" y="168" width="320" height="26" rx="11" fill="#1e293b"/>
-  <circle cx="848" cy="181" r="3.5" fill="#10b981"/>
-  <text x="858" y="184" fill="#ffffff" font-size="9" font-weight="700">STELLA Luxury Boutique</text>
-  <text x="1140" y="184" fill="#94a3b8" font-size="8" font-family="monospace" text-anchor="end">🔒 predictoraa.com</text>
-
-  <!-- Initial Greeting Bubble -->
-  <rect x="845" y="202" width="220" height="28" rx="8" fill="#1e293b" stroke="#334155"/>
-  <text x="853" y="215" fill="#e2e8f0" font-size="8.5" font-weight="700">STELLA AI:</text>
-  <text x="853" y="225" fill="#94a3b8" font-size="8">Welcome to Maison Luxé! How may I assist you?</text>
-
-  <!-- User Query Bubble -->
-  {f'''
-  <g>
-    <rect x="915" y="238" width="230" height="34" rx="8" fill="#0284c7"/>
-    <text x="923" y="252" fill="#ffffff" font-size="8" font-weight="700">You (Priya Sharma - VIP Platinum):</text>
-    <text x="923" y="264" fill="#f0f9ff" font-size="8">Looking for a red silk evening gown under ₹20,000</text>
-  </g>
-  ''' if user_bubble_visible else ''}
-
-  <!-- AI Typing Indicator -->
-  {f'''
-  <g>
-    <rect x="845" y="280" width="160" height="22" rx="7" fill="#1e293b" stroke="#a855f7" stroke-width="1"/>
-    <circle cx="860" cy="291" r="2.5" fill="#c084fc"/>
-    <circle cx="868" cy="291" r="2.5" fill="#c084fc"/>
-    <circle cx="876" cy="291" r="2.5" fill="#c084fc"/>
-    <text x="888" y="294" fill="#c084fc" font-size="8" font-weight="600">STELLA reasoning...</text>
-  </g>
-  ''' if ai_typing_visible else ''}
-
-  <!-- Final AI Response & Product Card -->
-  {f'''
-  <g>
-    <!-- AI Intro text -->
-    <rect x="845" y="278" width="295" height="22" rx="6" fill="#1e293b"/>
-    <text x="853" y="292" fill="#e2e8f0" font-size="8">I found this perfect silk gown in our live collection:</text>
-
-    <!-- Product Card -->
-    <rect x="845" y="305" width="295" height="88" rx="8" fill="#151e2e" stroke="#2563eb" stroke-width="1.2"/>
+  <g transform="translate(922, 172)" {"filter='url(#box-green)'" if is_completed else ""}>
+    <rect width="428" height="328" rx="14" fill="#080c14" stroke="{'#10b981' if is_completed else '#25354c'}" stroke-width="{'1.8' if is_completed else '1.5'}"/>
     
-    <!-- Product Thumbnail Placeholder -->
-    <rect x="853" y="313" width="55" height="72" rx="5" fill="#991b1b"/>
-    <text x="880" y="353" fill="#fca5a5" font-size="8" font-weight="700" text-anchor="middle">👗 GOWN</text>
+    <!-- Phone Top Status Bar -->
+    <rect width="428" height="26" rx="13" fill="#161f30"/>
+    <text x="20" y="17" fill="#cbd5e1" font-size="9" font-weight="600">09:41</text>
+    
+    <!-- Speaker & Camera notch -->
+    <rect x="180" y="6" width="68" height="6" rx="3" fill="#080c14"/>
+    <circle cx="258" cy="9" r="2.5" fill="#1e293b"/>
 
-    <!-- Product Details -->
-    <text x="918" y="327" fill="#f8fafc" font-size="9" font-weight="700">Ruby Red Silk Crêpe Gown</text>
-    <text x="918" y="339" fill="#94a3b8" font-size="7.5">Hand-draped bodice &bull; Micro-pleated</text>
-    <text x="918" y="352" fill="#38bdf8" font-size="8.5" font-weight="700">₹18,500 <tspan fill="#64748b" font-size="7.5" font-weight="normal">(MRP: ₹22,000)</tspan></text>
-    
-    <!-- VIP Platinum Discount Badge -->
-    <rect x="918" y="358" width="135" height="15" rx="3" fill="#064e3b" stroke="#10b981"/>
-    <text x="923" y="369" fill="#34d399" font-size="7" font-weight="700">VIP Platinum: 15% Off (-₹2,775)</text>
-    
-    <text x="918" y="385" fill="#10b981" font-size="7.5" font-weight="600">✓ In Stock: 4 units (Aiven MySQL)</text>
+    <text x="408" y="17" fill="#cbd5e1" font-size="8.5" font-family="monospace" text-anchor="end">5G &bull; 100%</text>
+
+    <!-- Browser URL Bar -->
+    <rect x="10" y="32" width="408" height="22" rx="5" fill="#0f172a" stroke="#1e293b"/>
+    <circle cx="24" cy="43" r="3" fill="#10b981"/>
+    <text x="34" y="46" fill="#38bdf8" font-size="8.5" font-family="monospace">https://predictoraa.com/chat</text>
+    <text x="398" y="46" fill="#64748b" font-size="8" text-anchor="end">🔒 SSL 256-bit</text>
+
+    <!-- Chat Messages Viewport -->
+    <!-- Initial Bot Welcome -->
+    <rect x="14" y="62" width="290" height="28" rx="8" fill="#141c2d" stroke="#283548"/>
+    <text x="22" y="75" fill="#f59e0b" font-size="8" font-weight="700">STELLA AI Boutique:</text>
+    <text x="22" y="85" fill="#94a3b8" font-size="8">Welcome to Maison Luxé! How may I curate your look today?</text>
+
+    <!-- User Query Bubble -->
+    {f'''
+    <g>
+      <rect x="120" y="98" width="294" height="34" rx="8" fill="#0284c7"/>
+      <text x="130" y="112" fill="#ffffff" font-size="8" font-weight="700">Priya Sharma (VIP Platinum &bull; 15% Off):</text>
+      <text x="130" y="125" fill="#e0f2fe" font-size="8">Looking for a red silk evening gown under ₹20,000 for a gala</text>
+    </g>
+    ''' if show_user_bubble else ''}
+
+    <!-- Typing Spinner -->
+    {f'''
+    <g>
+      <rect x="14" y="140" width="210" height="24" rx="8" fill="#1e1830" stroke="#a855f7" stroke-width="1"/>
+      <circle cx="30" cy="152" r="3" fill="#c084fc"/>
+      <circle cx="40" cy="152" r="3" fill="#c084fc"/>
+      <circle cx="50" cy="152" r="3" fill="#c084fc"/>
+      <text x="65" y="156" fill="#e9d5ff" font-size="8" font-weight="600">STELLA querying databases &amp; LLM...</text>
+    </g>
+    ''' if show_typing_indicator else ''}
+
+    <!-- AI Response Card with Product -->
+    {f'''
+    <g>
+      <!-- Bot Message text -->
+      <rect x="14" y="138" width="370" height="24" rx="6" fill="#141c2d"/>
+      <text x="22" y="153" fill="#e2e8f0" font-size="8">I have selected an exquisite masterpiece that meets your exact criteria:</text>
+
+      <!-- Luxury Product Recommendation Card -->
+      <rect x="14" y="168" width="400" height="115" rx="8" fill="#101726" stroke="#2563eb" stroke-width="1.4"/>
+      
+      <!-- Thumbnail with dress silhouette badge -->
+      <rect x="24" y="178" width="70" height="95" rx="6" fill="#881337" stroke="#be123c"/>
+      <text x="59" y="222" fill="#fecdd3" font-size="9" font-weight="800" text-anchor="middle">👗 SILK</text>
+      <text x="59" y="235" fill="#fda4af" font-size="7.5" text-anchor="middle">GOWN</text>
+
+      <!-- Details -->
+      <text x="105" y="193" fill="#ffffff" font-size="10" font-weight="800">Ruby Red Silk Crêpe Evening Gown</text>
+      <text x="105" y="206" fill="#94a3b8" font-size="8">Maison Luxé Autumn Atelier &bull; Micro-Pleated Drape</text>
+      
+      <text x="105" y="224" fill="#38bdf8" font-size="11" font-weight="800">₹18,500 <tspan fill="#64748b" font-size="8.5" font-weight="normal" text-decoration="line-through">₹22,000</tspan></text>
+      
+      <!-- VIP Discount Badge -->
+      <rect x="105" y="232" width="165" height="18" rx="4" fill="#064e3b" stroke="#10b981"/>
+      <text x="112" y="244" fill="#34d399" font-size="7.5" font-weight="700">👑 VIP Platinum: -15% Applied (-₹2,775)</text>
+      <text x="280" y="244" fill="#6ee7b7" font-size="8" font-weight="800">Net: ₹15,725</text>
+      
+      <circle cx="110" cy="265" r="3" fill="#10b981"/>
+      <text x="118" y="268" fill="#10b981" font-size="8" font-weight="600">Verified In Stock: 4 units (Aiven MySQL)</text>
+    </g>
+    ''' if show_ai_response else ''}
+
+    <!-- Bottom Input Bar -->
+    <rect x="10" y="292" width="408" height="28" rx="7" fill="#111827" stroke="#25354c"/>
+    <text x="22" y="310" fill="#64748b" font-size="8">Ask STELLA any question or browse collection...</text>
+    <rect x="365" y="296" width="46" height="20" rx="4" fill="#0284c7"/>
+    <text x="388" y="309" fill="#ffffff" font-size="8" font-weight="700" text-anchor="middle">Send</text>
   </g>
-  ''' if ai_response_visible else ''}
 
-  <!-- Phone Input Bar -->
-  <rect x="835" y="416" width="320" height="32" rx="8" fill="#131d2e" stroke="#1f293d"/>
-  <text x="848" y="436" fill="#64748b" font-size="8.5">Ask STELLA styling question...</text>
-  <rect x="1100" y="422" width="45" height="20" rx="4" fill="#0284c7"/>
-  <text x="1122" y="435" fill="#ffffff" font-size="8" font-weight="700" text-anchor="middle">Send</text>
+  <!-- Live CloudWatch Logs (Bottom Right) -->
+  <g transform="translate(922, 510)">
+    <rect width="428" height="162" rx="8" fill="#05080e" stroke="#1e293b" stroke-width="1"/>
+    <text x="14" y="16" fill="#64748b" font-size="8" font-weight="700" font-family="monospace">AWS CLOUDWATCH LOGS &amp; TRACE ENGINE</text>
+    
+    <text x="14" y="34" fill="#38bdf8" font-size="7.5" font-family="monospace">[14:20:02.102] [ALB:443] Path /chat &rarr; rule 1 matched (tg-fashion-backend)</text>
+    <text x="14" y="48" fill="#c084fc" font-size="7.5" font-family="monospace">[14:20:02.115] [ECS:FASTAPI] POST /chat token auth valid (VIP: Platinum)</text>
+    {f'''<text x="14" y="62" fill="#f43f5e" font-size="7.5" font-family="monospace">[14:20:02.525] [AI:SENSENOVA] SQL synthesized in 410ms (128 tokens)</text>''' if stage >= 4 else ''}
+    {f'''<text x="14" y="76" fill="#10b981" font-size="7.5" font-family="monospace">[14:20:02.563] [DB:AIVEN] Executed SELECT in 38ms (3 items in stock)</text>''' if stage >= 5 else ''}
+    {f'''<text x="14" y="90" fill="#06b6d4" font-size="7.5" font-family="monospace">[14:20:02.587] [DB:SUPABASE] Checkpoint committed for thread_id 'usr_priya'</text>''' if stage >= 6 else ''}
+    {f'''<text x="14" y="104" fill="#10b981" font-size="7.5" font-family="monospace">[14:20:02.944] [ALB] HTTP 200 OK returned to client in 842ms</text>''' if stage >= 7 else ''}
+    {f'''<text x="14" y="118" fill="#94a3b8" font-size="7" font-family="monospace">[14:20:02.950] [MONITOR] Latency budget verified: DNS 14ms | LLM 410ms | DB 38ms</text>''' if stage >= 8 else ''}
+    {f'''<text x="14" y="132" fill="#34d399" font-size="7" font-family="monospace">● Active Connection Pool: 8 connections &bull; 0 dropouts &bull; 0 err</text>''' if stage >= 8 else ''}
+    {f'''<text x="14" y="146" fill="#f59e0b" font-size="7" font-family="monospace">✓ Egress SSL payload delivered securely via ACM TLS 1.3</text>''' if stage >= 8 else ''}
+  </g>
 
-  <!-- Live Terminal Logs (Bottom of Right Panel) -->
-  <rect x="835" y="456" width="320" height="135" rx="8" fill="#06090e" stroke="#1e293b"/>
-  <text x="845" y="470" fill="#64748b" font-size="8" font-weight="700" font-family="monospace">ECS &amp; ALB LOG STREAM</text>
+  <!-- ==================== BOTTOM STATUS BAR ==================== -->
+  <rect x="0" y="694" width="{WIDTH}" height="46" fill="#0b101c" stroke="#1e293b" stroke-width="1"/>
   
-  <text x="845" y="486" fill="#38bdf8" font-size="7.5" font-family="monospace">[ALB] 443 HTTPS &rarr; rule 1 matched (/chat*)</text>
-  <text x="845" y="499" fill="#c084fc" font-size="7.5" font-family="monospace">[BE] POST /chat &rarr; FastAPI LangGraph agent</text>
-  {f'''<text x="845" y="512" fill="#f472b6" font-size="7.5" font-family="monospace">[LLM] SenseNova: SQL synthesized (410ms)</text>''' if stage >= 7 else ''}
-  {f'''<text x="845" y="525" fill="#34d399" font-size="7.5" font-family="monospace">[DB] Aiven MySQL: 3 items found (38ms)</text>''' if stage >= 9 else ''}
-  {f'''<text x="845" y="538" fill="#2dd4bf" font-size="7.5" font-family="monospace">[DB] Supabase: Thread state committed</text>''' if stage >= 11 else ''}
-  {f'''<text x="845" y="551" fill="#10b981" font-size="7.5" font-family="monospace">[ALB] 200 OK returned to client (842ms)</text>''' if stage >= 12 else ''}
+  <!-- Pill Indicator -->
+  <rect x="18" y="704" width="165" height="26" rx="13" fill="{pill_color}"/>
+  <text x="100" y="721" fill="#ffffff" font-size="9.5" font-weight="900" text-anchor="middle">{pill_label}</text>
 
-  <!-- ==================== BOTTOM EXPLAINER STATUS BAR ==================== -->
-  <rect x="0" y="608" width="{WIDTH}" height="42" fill="#0e1626" stroke="#1e293b" stroke-width="1"/>
+  <!-- Narrative text -->
+  <text x="195" y="721" fill="#f1f5f9" font-size="11.5" font-weight="600">{status_desc}</text>
   
-  <!-- Step Pill -->
-  <rect x="18" y="617" width="130" height="24" rx="12" fill="{pill_bg}"/>
-  <text x="83" y="633" fill="#ffffff" font-size="9.5" font-weight="800" text-anchor="middle">{pill_text}</text>
-
-  <!-- Step Detailed Explanation -->
-  <text x="160" y="633" fill="#e2e8f0" font-size="11" font-weight="500">{status_text}</text>
-  
-  <text x="{WIDTH - 18}" y="633" fill="#64748b" font-size="9" font-family="monospace" text-anchor="end">AWS ECS Fargate &bull; us-east-1</text>
+  <text x="{WIDTH - 18}" y="721" fill="#64748b" font-size="9.5" font-family="monospace" text-anchor="end">Production Fargate v1.4.0 &bull; Python 3.11 &bull; LangGraph 0.2</text>
 </svg>
 """
     return svg
 
-def interpolate(p1, p2, t):
-    """Linear interpolation between two (x, y) coordinates."""
+def interp(p1, p2, t):
+    """Linear interpolation between two 2D points."""
     return (p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t)
 
-def generate_all_frames():
-    """Generates the list of PIL Images representing the animated GIF sequence."""
+def build_pro_gif():
     frames = []
     durations = []
 
-    # Sequence keypoints
-    # Stage 0: User Click
-    for _ in range(3):
-        svg_data = make_frame_svg(stage=0)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
+    def add_frame(stage, pos=None, color="#00f0ff", trails=None, step=1, dur=160):
+        svg_code = make_pro_frame_svg(stage=stage, packet_pos=pos, packet_color=color, trail_positions=trails, step_index=step)
+        doc = fitz.open(stream=svg_code.encode("utf-8"), filetype="svg")
+        # 1.25x scaling for crisp, professional anti-aliased presentation display
+        pix = doc[0].get_pixmap(dpi=120)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         frames.append(img)
-        durations.append(250)
+        durations.append(dur)
 
-    # Stage 1: Client -> Route 53
-    p_start = (85, 240)
-    p_end = (130, 240)
-    for i in range(3):
-        t = (i + 1) / 3.0
-        pos = interpolate(p_start, p_end, t)
-        svg_data = make_frame_svg(stage=1, packet_pos=pos, packet_color="#38bdf8", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(150)
-
-    # Stage 2: Route 53 -> ALB
-    p_start = (195, 240)
-    p_end = (255, 240)
-    for i in range(3):
-        t = (i + 1) / 3.0
-        pos = interpolate(p_start, p_end, t)
-        svg_data = make_frame_svg(stage=2, packet_pos=pos, packet_color="#38bdf8", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(150)
-
-    # Stage 3: ALB evaluates rule /chat* -> tg-fashion-backend
+    print("🎥 Rendering Stage 0: Client Initiation...")
+    # Stage 0: User types and hits Send (packet at Client right edge)
+    p_client_edge = (98, 245)
     for _ in range(3):
-        svg_data = make_frame_svg(stage=3, packet_pos=(280, 240), packet_color="#38bdf8")
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(250)
+        add_frame(stage=0, pos=p_client_edge, color="#00f0ff", step=1, dur=280)
 
-    # Stage 4: ALB -> Backend Task 1
-    p_start = (335, 255)
-    p_end = (415, 320)
+    print("🎥 Rendering Stage 1: Client -> Route 53...")
+    # Stage 1: Packet moves from Client (98, 245) to Route 53 left edge (140, 245)
+    p_r53_in = (140, 245)
+    trail = []
     for i in range(4):
         t = (i + 1) / 4.0
-        pos = interpolate(p_start, p_end, t)
-        svg_data = make_frame_svg(stage=4, packet_pos=pos, packet_color="#c084fc", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(140)
+        pos = interp(p_client_edge, p_r53_in, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=1, pos=pos, color="#00f0ff", trails=list(trail), step=2, dur=140)
 
-    # Stage 5: Backend processing, CPU meter rises
-    for _ in range(2):
-        svg_data = make_frame_svg(stage=5, packet_pos=(450, 320), packet_color="#c084fc")
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(220)
-
-    # Stage 6: Backend -> SenseNova LLM
-    p_start = (610, 300)
-    p_end = (695, 185)
-    for i in range(3):
-        t = (i + 1) / 3.0
-        pos = interpolate(p_start, p_end, t)
-        svg_data = make_frame_svg(stage=6, packet_pos=pos, packet_color="#ec4899", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(140)
-
-    # Stage 7: SenseNova LLM returning
-    for i in range(3):
-        t = (i + 1) / 3.0
-        pos = interpolate(p_end, p_start, t)
-        svg_data = make_frame_svg(stage=7, packet_pos=pos, packet_color="#ec4899", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(140)
-
-    # Stage 8: Backend -> Aiven MySQL
-    p_start = (610, 325)
-    p_end = (695, 315)
-    for i in range(3):
-        t = (i + 1) / 3.0
-        pos = interpolate(p_start, p_end, t)
-        svg_data = make_frame_svg(stage=8, packet_pos=pos, packet_color="#10b981", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(140)
-
-    # Stage 9: Aiven MySQL returning
-    for i in range(3):
-        t = (i + 1) / 3.0
-        pos = interpolate(p_end, p_start, t)
-        svg_data = make_frame_svg(stage=9, packet_pos=pos, packet_color="#10b981", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(140)
-
-    # Stage 10: Backend -> Supabase Postgres
-    p_start = (610, 350)
-    p_end = (695, 440)
-    for i in range(3):
-        t = (i + 1) / 3.0
-        pos = interpolate(p_start, p_end, t)
-        svg_data = make_frame_svg(stage=10, packet_pos=pos, packet_color="#2dd4bf", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(140)
-
-    # Stage 11: Supabase Postgres returning
-    for i in range(3):
-        t = (i + 1) / 3.0
-        pos = interpolate(p_end, p_start, t)
-        svg_data = make_frame_svg(stage=11, packet_pos=pos, packet_color="#2dd4bf", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(140)
-
-    # Stage 12: Backend -> ALB -> Client
-    p_start = (415, 320)
-    p_end = (85, 240)
+    print("🎥 Rendering Stage 2: Route 53 -> ALB...")
+    # Stage 2: Packet moves from Route 53 right edge (215, 245) to ALB left edge (255, 245)
+    p_r53_out = (215, 245)
+    p_alb_in = (255, 245)
+    trail = []
     for i in range(4):
         t = (i + 1) / 4.0
-        pos = interpolate(p_start, p_end, t)
-        svg_data = make_frame_svg(stage=12, packet_pos=pos, packet_color="#10b981", sub_progress=t)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(140)
+        pos = interp(p_r53_out, p_alb_in, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=2, pos=pos, color="#00f0ff", trails=list(trail), step=2, dur=140)
 
-    # Stage 13: Response completed & sustained view
-    for _ in range(6):
-        svg_data = make_frame_svg(stage=13)
-        doc = fitz.open(stream=svg_data.encode("utf-8"), filetype="svg")
-        pix = doc[0].get_pixmap(dpi=96)
-        frames.append(Image.frombytes("RGB", [pix.width, pix.height], pix.samples))
-        durations.append(400)  # Total hold ~2.4 seconds
+    print("🎥 Rendering Stage 3: ALB Rule Match & Routing to Backend...")
+    # Stage 3: ALB matches rule /chat* and forwards from ALB (345, 255) to Backend (385, 315)
+    add_frame(stage=2, pos=p_alb_in, color="#c084fc", step=3, dur=260)
+    p_alb_out = (345, 255)
+    p_be_in = (385, 315)
+    trail = []
+    for i in range(4):
+        t = (i + 1) / 4.0
+        pos = interp(p_alb_out, p_be_in, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=3, pos=pos, color="#c084fc", trails=list(trail), step=3, dur=140)
+
+    print("🎥 Rendering Stage 4: Backend Task 1 & SenseNova LLM...")
+    # Stage 4: Inside Backend container, then packet travels to SenseNova LLM (715, 195)
+    add_frame(stage=3, pos=(495, 315), color="#c084fc", step=4, dur=220)
+    p_be_out_llm = (610, 295)
+    p_llm_in = (715, 195)
+    trail = []
+    for i in range(4):
+        t = (i + 1) / 4.0
+        pos = interp(p_be_out_llm, p_llm_in, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=4, pos=pos, color="#f43f5e", trails=list(trail), step=5, dur=130)
+
+    # SenseNova processes and returns
+    add_frame(stage=4, pos=(797, 195), color="#f43f5e", step=5, dur=320)
+    trail = []
+    for i in range(4):
+        t = (i + 1) / 4.0
+        pos = interp(p_llm_in, p_be_out_llm, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=4, pos=pos, color="#f43f5e", trails=list(trail), step=5, dur=130)
+
+    print("🎥 Rendering Stage 5: Backend -> Aiven MySQL...")
+    # Stage 5: Backend executes SQL against Aiven MySQL (715, 325)
+    p_be_out_mysql = (610, 325)
+    p_mysql_in = (715, 325)
+    trail = []
+    for i in range(4):
+        t = (i + 1) / 4.0
+        pos = interp(p_be_out_mysql, p_mysql_in, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=5, pos=pos, color="#10b981", trails=list(trail), step=6, dur=130)
+
+    # MySQL executes
+    add_frame(stage=5, pos=(797, 325), color="#10b981", step=6, dur=300)
+    trail = []
+    for i in range(4):
+        t = (i + 1) / 4.0
+        pos = interp(p_mysql_in, p_be_out_mysql, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=5, pos=pos, color="#10b981", trails=list(trail), step=6, dur=130)
+
+    print("🎥 Rendering Stage 6: Backend -> Supabase Postgres...")
+    # Stage 6: Backend commits checkpoint to Supabase Postgres (715, 455)
+    p_be_out_supa = (610, 355)
+    p_supa_in = (715, 455)
+    trail = []
+    for i in range(4):
+        t = (i + 1) / 4.0
+        pos = interp(p_be_out_supa, p_supa_in, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=6, pos=pos, color="#06b6d4", trails=list(trail), step=7, dur=130)
+
+    add_frame(stage=6, pos=(797, 455), color="#06b6d4", step=7, dur=260)
+    trail = []
+    for i in range(4):
+        t = (i + 1) / 4.0
+        pos = interp(p_supa_in, p_be_out_supa, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=6, pos=pos, color="#06b6d4", trails=list(trail), step=7, dur=130)
+
+    print("🎥 Rendering Stage 7: Response Return -> Client...")
+    # Stage 7: Return packet travels Backend -> ALB -> Route 53 -> Client
+    trail = []
+    for i in range(5):
+        t = (i + 1) / 5.0
+        pos = interp(p_be_in, p_client_edge, t)
+        trail.append(pos)
+        if len(trail) > 3: trail.pop(0)
+        add_frame(stage=7, pos=pos, color="#10b981", trails=list(trail), step=8, dur=130)
+
+    print("🎥 Rendering Stage 8: Completed Response View (Hold)...")
+    # Stage 8: Client renders STELLA AI response with product card and full telemetry
+    # Hold for ~3.2 seconds so viewers can comfortably read all numbers and cards
+    for _ in range(8):
+        add_frame(stage=8, pos=None, color="#10b981", step=8, dur=400)
 
     return frames, durations
 
@@ -585,27 +659,26 @@ def main():
     assets_dir.mkdir(parents=True, exist_ok=True)
     gif_path = assets_dir / "architecture_chat_flow.gif"
 
-    print("🚀 Generating animation frames from vector SVG...")
-    frames, durations = generate_all_frames()
-    print(f"✅ Generated {len(frames)} frames. Optimizing and compiling GIF...")
+    print("🚀 Compiling professional multi-stage SVG frames...")
+    frames, durations = build_pro_gif()
+    print(f"✅ Generated {len(frames)} frames. Optimizing adaptive color palette...")
 
-    # Quantize frames to 256-color palette for crisp rendering & optimized size
-    quantized_frames = []
+    quantized = []
     for f in frames:
-        q_frame = f.convert("P", palette=Image.Palette.ADAPTIVE, colors=256)
-        quantized_frames.append(q_frame)
+        q = f.convert("P", palette=Image.Palette.ADAPTIVE, colors=256)
+        quantized.append(q)
 
-    quantized_frames[0].save(
+    quantized[0].save(
         str(gif_path),
         save_all=True,
-        append_images=quantized_frames[1:],
+        append_images=quantized[1:],
         duration=durations,
         loop=0,
         optimize=True,
     )
 
     size_mb = gif_path.stat().st_size / (1024 * 1024)
-    print(f"🎉 Animated GIF successfully generated: {gif_path} ({size_mb:.2f} MB)")
+    print(f"🎉 Executive-grade GIF compiled: {gif_path} ({size_mb:.2f} MB, {len(frames)} frames)")
 
 if __name__ == "__main__":
     main()
