@@ -4,11 +4,11 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
-  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "executionRoleArn": "arn:aws:iam::493116771407:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
       "name": "fashion-frontend",
-      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/fashion-frontend:latest",
+      "image": "493116771407.dkr.ecr.ap-south-1.amazonaws.com/fashion-frontend:latest",
       "essential": true,
       "portMappings": [
         {
@@ -20,7 +20,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/fashion-frontend",
-          "awslogs-region": "<REGION>",
+          "awslogs-region": "ap-south-1",
           "awslogs-stream-prefix": "frontend"
         }
       }
