@@ -17,6 +17,14 @@
 > 💡 *Vector SVG and High-Resolution 3840×2400 formats are available in [`docs/aws_architecture_diagram.svg`](./docs/aws_architecture_diagram.svg) and [`docs/aws_architecture_diagram.jpg`](./docs/aws_architecture_diagram.jpg).*  
 > 🚀 **Live Interactive Architecture Visualizer:** Open [`docs/architecture_visualizer.html`](./docs/architecture_visualizer.html) in any browser for an interactive animated simulation of live traffic packets, ALB path routing, database calls, real-time client chat preview, and ECS auto-scaling!
 
+### 🎬 Live Traffic Animation (`POST /chat` Flow)
+
+Watch data packets move in real-time across the infrastructure when a customer queries the STELLA AI stylist:
+
+![STELLA AI Production Traffic Flow](./docs/assets/architecture_chat_flow.gif)
+
+*Trace Sequence: Client Browser &rarr; Route 53 DNS &rarr; ALB Path Match (`/chat*`) &rarr; ECS Fargate Backend (`:8000`) &rarr; SenseNova LLM (SQL Gen) &rarr; Aiven Cloud MySQL (Inventory) &rarr; Supabase Postgres (Checkpoints) &rarr; Client Response.*
+
 ---
 
 ## 🌟 What is this Project All About?
