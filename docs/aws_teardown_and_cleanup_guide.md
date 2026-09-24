@@ -143,12 +143,17 @@ aws elbv2 delete-target-group --target-group-arn $TG_FE --region ap-south-1
 
 #### Via AWS Console (UI):
 1. Go to **Route 53 Console** $\rightarrow$ Click **Hosted zones** $\rightarrow$ Open **`predictoraa.com`**.
-2. Select the records:
-   - `predictoraa.com` (`A` Alias record)
-   - `www.predictoraa.com` (`A` Alias record)
-   - `_cname...` (ACM SSL validation record)
-3. Click **Delete record** $\rightarrow$ Confirm.
-4. *(Optional)* Click **Delete zone** (top right) to remove the entire hosted zone ($0.50/month savings).
+2. > ⚠️ **CRITICAL NOTE ON SELECTING RECORDS**:  
+   > AWS **does not allow** deleting default `NS` and `SOA` records individually. If you select all records, the **"Delete records"** button will be greyed out/faded.
+   > 
+   > **Check ONLY these 3 custom records (leave `NS` and `SOA` unchecked):**
+   > - ✅ `predictoraa.com` (`A` Alias record)
+   > - ✅ `www.predictoraa.com` (`A` Alias record)
+   > - ✅ `_fc080f...` (`CNAME` ACM validation record)
+3. Click **Delete records** (top right) $\rightarrow$ Confirm deletion.
+4. **Delete the Hosted Zone ($0.50/month savings)**:
+   - Once the 3 custom records are deleted (leaving only `NS` and `SOA`), click the **`Delete zone`** button in the top right corner.
+   - Type `delete` $\rightarrow$ Confirm.
 
 #### Via AWS CLI:
 ```bash

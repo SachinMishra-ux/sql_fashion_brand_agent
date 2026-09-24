@@ -19,34 +19,49 @@ Think of Amazon ECS (**Elastic Container Service**) using a simple everyday anal
 
 ## 🖼️ 2. Visual Architecture: How Task Definitions Work
 
-```mermaid
-flowchart TD
-    subgraph Blueprint["1. The Blueprint (JSON File)"]
-        TD["📄 Task Definition\n(e.g., fashion-backend:1)\n• 0.5 vCPU, 1 GB RAM\n• Docker Image: ECR\n• Secrets: SSM Parameter Store\n• Logs: CloudWatch"]
-    end
-
-    subgraph Supervisor["2. The Orchestrator"]
-        Service["⚙️ ECS Service\n(Maintains desired task count: 1)\nMonitors health & handles rolling updates"]
-    end
-
-    subgraph AWS_Fargate["3. Live Serverless Execution (AWS Fargate)"]
-        subgraph RunningTask["🚀 Running ECS Task (MicroVM)"]
-            Container["🐳 Docker Container\n(FastAPI Application)\nPort: 8000"]
-            ENI["🌐 Dedicated Private IP\n(VPC Elastic Network Interface)"]
-        end
-    end
-
-    subgraph External_Services["Connected AWS Services"]
-        ECR["📦 Amazon ECR\n(Pulls Docker Image)"]
-        SSM["🔐 Parameter Store\n(Injects DB Passwords)"]
-        CW["🪵 CloudWatch Logs\n(Streams Stdout/Stderr)"]
-    end
-
-    TD -->|Instantiated by| Service
-    Service -->|Deploys & Monitors| RunningTask
-    ECR -.->|1. Download Image| RunningTask
-    SSM -.->|2. Decrypt Secrets| RunningTask
-    RunningTask -.->|3. Stream Logs| CW
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. THE BLUEPRINT (JSON File in Git / AWS)                                   │
+│                                                                             │
+│    📄 Task Definition: "fashion-backend:1"                                  │
+│    ├── Compute Mode: AWS Fargate (Serverless)                               │
+│    ├── Sizing: 0.5 vCPU · 1024 MB (1 GB) RAM                                │
+│    ├── IAM Role: ecsTaskExecutionRole (ECR + SSM + CloudWatch access)       │
+│    ├── Container Image: 493116771407.dkr.ecr.ap-south-1.amazonaws.com/...   │
+│    ├── Port Mapping: Port 8000 (TCP)                                        │
+│    ├── Injected Secrets: SSM Parameter Store (/fashion-agent/*)             │
+│    └── Logging Driver: CloudWatch Logs (/ecs/fashion-backend)               │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                                       │ (1) Instantiated & Supervised by
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2. THE ORCHESTRATOR (AWS ECS Service)                                       │
+│                                                                             │
+│    ⚙️  ECS Service: "fashion-backend-service"                                │
+│    ├── Desired Count: 1 healthy task always running                         │
+│    ├── Target Group: Connects container to ALB (tg-fashion-backend)          │
+│    └── CI/CD Rolling Updates: Starts new revision before stopping old one   │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                                       │ (2) Provisions Serverless MicroVM
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3. LIVE SERVERLESS EXECUTION (AWS Fargate Task)                             │
+│                                                                             │
+│    ┌───────────────────────────────────────────────────────────────────┐    │
+│    │  🚀 Running Task Instance (Dedicated ENI Private IP in VPC)       │    │
+│    │                                                                   │    │
+│    │   📦 Amazon ECR ────────▶ [ 🐳 FastAPI Container ]                │    │
+│    │   (Pulls Docker Image)           │ (Listens on Port 8000)         │    │
+│    │                                  │                                │    │
+│    │   🔐 AWS SSM Store ──────────────┼──▶ Injects API Keys into RAM   │    │
+│    │   (Decrypts DB Secrets)          │                                │    │
+│    │                                  ▼                                │    │
+│    │                          🪵 CloudWatch Logs                       │    │
+│    │                          (Streams prints & errors in real-time)   │    │
+│    └───────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
