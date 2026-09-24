@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STELLA AI — Interactive Production Architecture & Traffic Visualizer</title>
+  <style>
+    :root {
+      --bg-dark: #0a0e17;
+      --bg-panel: #111827;
+      --bg-card: #1f293d;
+      --border-color: #374151;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --aws-orange: #ff9900;
+      --blue-accent: #38bdf8;
+      --purple-accent: #a855f7;
+      --green-accent: #10b981;
+      --pink-accent: #ec4899;
+      --red-accent: #f43f5e;
+      --yellow-accent: #fbbf24;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: linear-gradient(180deg, #111827 0%, rgba(17, 24, 39, 0.9) 100%);
+      border-bottom: 1px solid #1f2937;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #d97706, #ec4899);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 20px;
+      color: white;
+      box-shadow: 0 0 15px rgba(236, 72, 153, 0.4);
+    }
+
+    .brand-text h1 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 9999px;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      background-color: #10b981;
+      border-radius: 50%;
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1.15); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Simulation Control Toolbar */
+    .controls-bar {
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+      padding: 10px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .scenarios-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .group-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-right: 4px;
+    }
+
+    .sim-btn {
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      padding: 7px 14px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .sim-btn:hover {
+      background: #283548;
+      border-color: #475569;
+      transform: translateY(-1px);
+    }
+
+    .sim-btn:active {
+      transform: translateY(0);
+    }
+
+    .sim-btn.primary {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      border-color: #38bdf8;
+      color: white;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+    }
+
+    .sim-btn.primary:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
+    }
+
+    .sim-btn.frontend-btn {
+      border-left: 3px solid var(--blue-accent);
+    }
+
+    .sim-btn.backend-btn {
+      border-left: 3px solid var(--purple-accent);
+    }
+
+    .sim-btn.delete-btn {
+      border-left: 3px solid var(--red-accent);
+    }
+
+    .sim-btn.spike-btn {
+      border-left: 3px solid var(--yellow-accent);
+    }
+
+    .sim-btn.active {
+      outline: 2px solid var(--blue-accent);
+      background: #223554;
+    }
+
+    .speed-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .speed-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .speed-btn.active {
+      background: var(--blue-accent);
+      color: #0f172a;
+      font-weight: 700;
+      border-color: var(--blue-accent);
+    }
+
+    /* Main Container Split Layout */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      flex: 1;
+      height: calc(100vh - 120px);
+      overflow: hidden;
+    }
+
+    @media (max-width: 1200px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: auto;
+      }
+    }
+
+    /* Architecture Visual Canvas */
+    .canvas-container {
+      position: relative;
+      background: radial-gradient(circle at 50% 30%, #151f33 0%, #0a0e17 80%);
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+    }
+
+    /* Grid overlay for tech look */
+    .canvas-grid {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+    }
+
+    /* SVG Diagram Layer */
+    .diagram-svg {
+      width: 100%;
+      min-width: 900px;
+      height: 680px;
+      display: block;
+      margin: auto;
+      position: relative;
+      z-index: 10;
+    }
+
+    /* SVG Paths styling */
+    .wire-path {
+      fill: none;
+      stroke: #253349;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: stroke 0.3s;
+    }
+
+    .wire-path.active-path {
+      stroke: #38bdf8;
+      stroke-width: 3.5;
+      filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.8));
+    }
+
+    .wire-path.active-path-backend {
+      stroke: #a855f7;
+      stroke-width: 3.5;
+      filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.8));
+    }
+
+    .wire-path.active-path-db {
+      stroke: #10b981;
+      stroke-width: 3.5;
+      filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.8));
+    }
+
+    .wire-path.active-path-delete {
+      stroke: #f43f5e;
+      stroke-width: 3.5;
+      filter: drop-shadow(0 0 6px rgba(244, 63, 94, 0.8));
+    }
+
+    /* Glowing animated packet dot */
+    .packet-dot {
+      fill: #38bdf8;
+      filter: drop-shadow(0 0 8px #38bdf8) drop-shadow(0 0 14px #0284c7);
+      r: 6;
+      display: none;
+    }
+
+    /* Node Box Styling inside SVG */
+    .arch-node {
+      cursor: pointer;
+      transition: transform 0.2s, filter 0.2s;
+    }
+
+    .arch-node:hover {
+      filter: brightness(1.15);
+    }
+
+    .node-rect {
+      fill: #151d2e;
+      stroke: #334155;
+      stroke-width: 1.5;
+      rx: 10;
+      ry: 10;
+      transition: all 0.3s;
+    }
+
+    .arch-node.active-node .node-rect {
+      stroke: #38bdf8;
+      stroke-width: 2.5;
+      fill: #1c2942;
+      filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.5));
+    }
+
+    .arch-node.active-node-backend .node-rect {
+      stroke: #a855f7;
+      stroke-width: 2.5;
+      fill: #26193d;
+      filter: drop-shadow(0 0 14px rgba(168, 85, 247, 0.5));
+    }
+
+    .arch-node.active-node-db .node-rect {
+      stroke: #10b981;
+      stroke-width: 2.5;
+      fill: #132a24;
+      filter: drop-shadow(0 0 14px rgba(16, 185, 129, 0.5));
+    }
+
+    .cluster-box {
+      fill: rgba(15, 23, 42, 0.55);
+      stroke: #f59e0b;
+      stroke-width: 1.5;
+      stroke-dasharray: 6 4;
+      rx: 14;
+    }
+
+    .vpc-box {
+      fill: rgba(10, 15, 26, 0.4);
+      stroke: #475569;
+      stroke-width: 1.5;
+      stroke-dasharray: 4 4;
+      rx: 16;
+    }
+
+    /* Right Sidebar (Tabs for Simulator & Live Logs) */
+    .sidebar {
+      background: var(--bg-panel);
+      border-left: 1px solid #1f2937;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .sidebar-tabs {
+      display: flex;
+      border-bottom: 1px solid #1f2937;
+      background: #0d131f;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      color: #38bdf8;
+      border-bottom-color: #38bdf8;
+      background: #111827;
+    }
+
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+    }
+
+    .tab-content.active {
+      display: flex;
+    }
+
+    /* Client Simulator Frame (Tab 1) */
+    .phone-mockup {
+      flex: 1;
+      background: #0b0f17;
+      margin: 14px;
+      border-radius: 16px;
+      border: 1px solid #283548;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .phone-header {
+      background: #1e293b;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #334155;
+    }
+
+    .phone-url {
+      font-size: 11px;
+      color: #94a3b8;
+      font-family: var(--font-mono);
+      background: #0f172a;
+      padding: 3px 8px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .phone-chat-body {
+      flex: 1;
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .chat-bubble {
+      padding: 10px 14px;
+      border-radius: 12px;
+      max-width: 88%;
+      line-height: 1.45;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .chat-bubble.user {
+      background: #0284c7;
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 2px;
+    }
+
+    .chat-bubble.ai {
+      background: #1e293b;
+      color: #f1f5f9;
+      align-self: flex-start;
+      border-bottom-left-radius: 2px;
+      border: 1px solid #334155;
+    }
+
+    .chat-bubble.system {
+      background: rgba(244, 63, 94, 0.1);
+      border: 1px dashed rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+      font-size: 11px;
+      align-self: center;
+      text-align: center;
+      border-radius: 8px;
+    }
+
+    .product-card {
+      background: #151e2e;
+      border: 1px solid #2d3d54;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 8px;
+    }
+
+    .product-title {
+      font-weight: 700;
+      color: #f8fafc;
+      font-size: 12px;
+    }
+
+    .product-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #38bdf8;
+      margin-top: 4px;
+    }
+
+    .phone-input-bar {
+      padding: 10px;
+      background: #131d2e;
+      border-top: 1px solid #233145;
+      display: flex;
+      gap: 6px;
+    }
+
+    .phone-input-bar input {
+      flex: 1;
+      background: #0a0e17;
+      border: 1px solid #334155;
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: white;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .phone-input-bar input:focus {
+      border-color: var(--blue-accent);
+    }
+
+    .phone-send-btn {
+      background: #0284c7;
+      border: none;
+      color: white;
+      padding: 0 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .phone-send-btn:hover {
+      background: #0369a1;
+    }
+
+    .quick-prompts {
+      padding: 8px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      background: #111a28;
+      border-top: 1px solid #1f2a3a;
+    }
+
+    .quick-chip {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 4px 8px;
+      border-radius: 9999px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quick-chip:hover {
+      background: #2b3b52;
+      color: #e2e8f0;
+      border-color: #475569;
+    }
+
+    /* Live Telemetry / Packet Inspector (Tab 2) */
+    .telemetry-pane {
+      flex: 1;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .metric-card {
+      background: #151d2c;
+      border: 1px solid #273549;
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .metric-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-value {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      margin-top: 4px;
+      color: #38bdf8;
+    }
+
+    .log-terminal {
+      flex: 1;
+      background: #06090e;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      overflow-y: auto;
+      max-height: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .log-line {
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .log-time { color: #64748b; margin-right: 6px; }
+    .log-alb { color: #38bdf8; font-weight: 600; }
+    .log-be { color: #c084fc; font-weight: 600; }
+    .log-fe { color: #60a5fa; font-weight: 600; }
+    .log-db { color: #34d399; font-weight: 600; }
+    .log-llm { color: #f472b6; font-weight: 600; }
+    .log-warn { color: #fbbf24; }
+    .log-err { color: #f87171; }
+
+    .routing-rules-box {
+      background: #151d2c;
+      border: 1px solid #273549;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 11px;
+    }
+
+    .routing-rules-box h4 {
+      font-size: 11px;
+      color: #e2e8f0;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .rule-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 6px;
+      border-radius: 4px;
+      background: #0f1622;
+      margin-bottom: 4px;
+      font-family: var(--font-mono);
+    }
+
+    .rule-item.highlighted {
+      background: #1e3a5f;
+      border-left: 3px solid #38bdf8;
+    }
+
+    /* Explanation Banner at Bottom */
+    .flow-explainer {
+      background: #0e1626;
+      border-top: 1px solid #1e293b;
+      padding: 10px 24px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .flow-step-text {
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-pill {
+      background: #2563eb;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 10px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Bar -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">S</div>
+      <div class="brand-text">
+        <h1>STELLA AI Fashion Brand Agent <span style="font-size: 12px; font-weight: normal; color: #94a3b8;">| AWS Live Architecture Flow</span></h1>
+        <p>Production Topology: Route 53 &rarr; ALB &rarr; ECS Fargate Cluster &rarr; Aiven / Supabase / SenseNova</p>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <span class="live-badge"><span class="live-dot"></span> LIVE DOMAIN: predictoraa.com</span>
+    </div>
+  </header>
+
+  <!-- Interactive Controls Toolbar -->
+  <div class="controls-bar">
+    <div class="scenarios-group">
+      <span class="group-label">Interactive Flows:</span>
+      <button class="sim-btn primary frontend-btn" onclick="triggerScenario('frontend')">
+        <span>🌐</span> Browse UI (GET /)
+      </button>
+      <button class="sim-btn backend-btn" onclick="triggerScenario('chat_dress')">
+        <span>💬</span> AI Chat: Evening Gowns (POST /chat)
+      </button>
+      <button class="sim-btn backend-btn" onclick="triggerScenario('chat_handbag')">
+        <span>👜</span> AI Chat: Leather Bags (POST /chat)
+      </button>
+      <button class="sim-btn delete-btn" onclick="triggerScenario('delete_chat')">
+        <span>🗑️</span> Clear Memory (DELETE /chat/history)
+      </button>
+      <button class="sim-btn spike-btn" onclick="triggerScenario('stress_test')">
+        <span>⚡</span> Stress Test: Scale Out (CPU > 70%)
+      </button>
+    </div>
+
+    <div class="speed-group">
+      <span class="group-label">Speed:</span>
+      <button class="speed-btn" onclick="setSpeed(0.5, this)">0.5x</button>
+      <button class="speed-btn active" onclick="setSpeed(1.0, this)">1.0x</button>
+      <button class="speed-btn" onclick="setSpeed(2.0, this)">2.0x</button>
+      <button class="sim-btn" style="padding: 4px 10px; font-size: 11px;" onclick="resetSimulation()">🔄 Reset</button>
+    </div>
+  </div>
+
+  <!-- Main Split Layout -->
+  <div class="main-layout">
+    
+    <!-- Left Area: Live Diagram Canvas -->
+    <div class="canvas-container" id="canvas-container">
+      <div class="canvas-grid"></div>
+
+      <!-- Main SVG Canvas for Animated Lines and Nodes -->
+      <svg class="diagram-svg" id="arch-svg" viewBox="0 0 1020 660">
+        <defs>
+          <!-- Gradients -->
+          <linearGradient id="clientGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0284c7" />
+            <stop offset="100%" stop-color="#0369a1" />
+          </linearGradient>
+          <linearGradient id="albGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0284c7" />
+            <stop offset="100%" stop-color="#38bdf8" />
+          </linearGradient>
+          <linearGradient id="ecsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#d97706" />
+            <stop offset="100%" stop-color="#f59e0b" />
+          </linearGradient>
+          <linearGradient id="feGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0284c7" />
+            <stop offset="100%" stop-color="#2563eb" />
+          </linearGradient>
+          <linearGradient id="beGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#9333ea" />
+            <stop offset="100%" stop-color="#c084fc" />
+          </linearGradient>
+          <linearGradient id="dbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#059669" />
+            <stop offset="100%" stop-color="#10b981" />
+          </linearGradient>
+          <linearGradient id="llmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#db2777" />
+            <stop offset="100%" stop-color="#ec4899" />
+          </linearGradient>
+
+          <!-- Drop Shadow Filter -->
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        <!-- Container VPC Box -->
+        <rect class="vpc-box" x="290" y="30" width="710" height="600" />
+        <text x="310" y="55" fill="#64748b" font-size="11" font-family="monospace" font-weight="700">AWS VPC (10.0.0.0/16) - us-east-1</text>
+
+        <!-- ECS Cluster Box -->
+        <rect class="cluster-box" x="480" y="90" width="280" height="490" />
+        <text x="495" y="115" fill="#f59e0b" font-size="11" font-weight="700">AWS ECS Cluster (fashion-agent-cluster)</text>
+        <text x="495" y="130" fill="#94a3b8" font-size="9" font-family="monospace">AWS Fargate Serverless Compute</text>
+
+        <!-- CONNECTOR PATHS -->
+        <!-- Path 1: Client -> Route 53 -->
+        <path id="path-client-dns" class="wire-path" d="M 120 220 L 175 220" />
+        
+        <!-- Path 2: Route 53 -> ALB -->
+        <path id="path-dns-alb" class="wire-path" d="M 235 220 L 320 220" />
+
+        <!-- Path 3A: ALB -> Frontend TG (Rule: Path /*) -->
+        <path id="path-alb-frontend" class="wire-path" d="M 400 195 C 440 195, 450 180, 500 180" />
+
+        <!-- Path 3B: ALB -> Backend TG (Rule: Path /chat*, /products*, /auth*) -->
+        <path id="path-alb-backend" class="wire-path" d="M 400 245 C 440 245, 450 320, 500 320" />
+
+        <!-- Path 3C: ALB -> Backend Replica 2 (Auto-Scaled) -->
+        <path id="path-alb-backend-rep2" class="wire-path" d="M 400 250 C 440 260, 450 450, 500 450" opacity="0.3" stroke-dasharray="4 4" />
+
+        <!-- Path 4A: Backend -> SenseNova LLM API -->
+        <path id="path-backend-llm" class="wire-path" d="M 740 310 C 780 310, 800 170, 830 170" />
+
+        <!-- Path 4B: Backend -> Aiven MySQL (Catalog & Inventory) -->
+        <path id="path-backend-mysql" class="wire-path" d="M 740 330 C 780 330, 800 320, 830 320" />
+
+        <!-- Path 4C: Backend -> Supabase Postgres (Memory Checkpointer) -->
+        <path id="path-backend-supabase" class="wire-path" d="M 740 350 C 780 350, 800 470, 830 470" />
+
+        <!-- Return Paths for Data Response Animation -->
+        <path id="path-return-fe-client" class="wire-path" d="M 500 200 C 440 200, 380 260, 120 240" opacity="0" />
+        <path id="path-return-be-client" class="wire-path" d="M 500 340 C 430 340, 360 270, 120 240" opacity="0" />
+
+        <!-- ARCHITECTURE NODES -->
+
+        <!-- 1. Client Node -->
+        <g id="node-client" class="arch-node" transform="translate(20, 175)">
+          <rect class="node-rect" width="100" height="90" />
+          <rect x="0" y="0" width="100" height="24" rx="8" fill="#0284c7" />
+          <text x="50" y="16" fill="white" font-size="10" font-weight="700" text-anchor="middle">CLIENT</text>
+          <text x="50" y="44" fill="#f8fafc" font-size="11" font-weight="600" text-anchor="middle">Browser / App</text>
+          <text x="50" y="60" fill="#94a3b8" font-size="9" font-family="monospace" text-anchor="middle">predictoraa.com</text>
+          <text x="50" y="74" fill="#38bdf8" font-size="8" font-weight="600" text-anchor="middle">Port 443 (HTTPS)</text>
+        </g>
+
+        <!-- 2. DNS & SSL Node (Route 53 + ACM) -->
+        <g id="node-dns" class="arch-node" transform="translate(155, 175)">
+          <rect class="node-rect" width="105" height="90" />
+          <rect x="0" y="0" width="105" height="24" rx="8" fill="#1e293b" />
+          <text x="52" y="16" fill="#38bdf8" font-size="9" font-weight="700" text-anchor="middle">ROUTE 53 + ACM</text>
+          <text x="52" y="44" fill="#f8fafc" font-size="10" font-weight="600" text-anchor="middle">DNS Alias + SSL</text>
+          <text x="52" y="60" fill="#94a3b8" font-size="8.5" font-family="monospace" text-anchor="middle">*.predictoraa.com</text>
+          <text x="52" y="74" fill="#10b981" font-size="8" font-weight="600" text-anchor="middle">TLS 1.3 Certified</text>
+        </g>
+
+        <!-- 3. Application Load Balancer (ALB) -->
+        <g id="node-alb" class="arch-node" transform="translate(295, 160)">
+          <rect class="node-rect" width="115" height="120" />
+          <rect x="0" y="0" width="115" height="24" rx="8" fill="#0284c7" />
+          <text x="57" y="16" fill="white" font-size="9.5" font-weight="700" text-anchor="middle">AWS ALB</text>
+          <text x="57" y="42" fill="#f8fafc" font-size="10" font-weight="700" text-anchor="middle">alb-fashion-agent</text>
+          <text x="57" y="58" fill="#e2e8f0" font-size="8.5" font-weight="600" text-anchor="middle">Path Rule Engine</text>
+          
+          <line x1="8" y1="66" x2="107" y2="66" stroke="#334155" stroke-width="1" />
+          
+          <text x="12" y="80" fill="#60a5fa" font-size="8" font-family="monospace">/* &rarr; TG: Frontend</text>
+          <text x="12" y="94" fill="#c084fc" font-size="8" font-family="monospace">/chat* &rarr; TG: Backend</text>
+          <text x="57" y="110" fill="#10b981" font-size="7.5" font-weight="600" text-anchor="middle">Dual-AZ Health: OK</text>
+        </g>
+
+        <!-- 4A. Frontend ECS Service (Nginx Container) -->
+        <g id="node-frontend" class="arch-node" transform="translate(500, 145)">
+          <rect class="node-rect" width="240" height="95" />
+          <rect x="0" y="0" width="240" height="24" rx="8" fill="#0369a1" />
+          <text x="120" y="16" fill="white" font-size="10" font-weight="700" text-anchor="middle">fashion-frontend-service</text>
+          <text x="14" y="42" fill="#38bdf8" font-size="10" font-weight="700">Container: Nginx (Alpine)</text>
+          <text x="14" y="58" fill="#94a3b8" font-size="9" font-family="monospace">Port: 80 &bull; Private Subnet</text>
+          <text x="14" y="74" fill="#cbd5e1" font-size="9">Serves: React/HTML5 Luxury Catalog UI</text>
+          <text x="14" y="88" fill="#10b981" font-size="8.5" font-weight="600">Avg Latency: 12ms</text>
+        </g>
+
+        <!-- 4B. Backend ECS Service Task 1 (FastAPI + LangGraph) -->
+        <g id="node-backend-1" class="arch-node" transform="translate(500, 275)">
+          <rect class="node-rect" width="240" height="115" />
+          <rect x="0" y="0" width="240" height="24" rx="8" fill="#7e22ce" />
+          <text x="120" y="16" fill="white" font-size="10" font-weight="700" text-anchor="middle">fashion-backend-service (Task 1)</text>
+          <text x="14" y="42" fill="#c084fc" font-size="10" font-weight="700">Container: FastAPI + LangGraph</text>
+          <text x="14" y="58" fill="#94a3b8" font-size="9" font-family="monospace">Port: 8000 &bull; 0.5 vCPU / 1GB RAM</text>
+          <text x="14" y="74" fill="#cbd5e1" font-size="9">Role: SQL Agent, Intent Router, Checkpoints</text>
+          
+          <!-- CPU Meter bar -->
+          <rect x="14" y="84" width="120" height="8" rx="4" fill="#1e293b" />
+          <rect id="cpu-bar-fill-1" x="14" y="84" width="24" height="8" rx="4" fill="#10b981" />
+          <text id="cpu-bar-text-1" x="142" y="92" fill="#94a3b8" font-size="8.5" font-family="monospace">CPU: 20%</text>
+          <text x="14" y="106" fill="#10b981" font-size="8.5" font-weight="600">Health: Healthy (HTTP 200 /health)</text>
+        </g>
+
+        <!-- 4C. Backend ECS Service Task 2 (Auto-Scaling Replica) -->
+        <g id="node-backend-2" class="arch-node" transform="translate(500, 420)" opacity="0.35">
+          <rect class="node-rect" width="240" height="100" stroke-dasharray="4 4" />
+          <rect x="0" y="0" width="240" height="24" rx="8" fill="#4c1d95" />
+          <text x="120" y="16" fill="#e9d5ff" font-size="10" font-weight="700" text-anchor="middle">fashion-backend-service (Task 2 Replica)</text>
+          <text x="14" y="42" fill="#c084fc" font-size="9.5" font-weight="700">Auto-Scaling Replica (Target Tracking)</text>
+          <text x="14" y="58" fill="#94a3b8" font-size="9" font-family="monospace">Trigger: CPU Utilization &gt; 70%</text>
+          <text id="task2-status-text" x="14" y="76" fill="#94a3b8" font-size="9">Status: Standby (Min: 1, Max: 3)</text>
+          <text x="14" y="92" fill="#64748b" font-size="8.5" font-family="monospace">DesiredCount: 1</text>
+        </g>
+
+        <!-- 5A. External LLM: SenseNova -->
+        <g id="node-llm" class="arch-node" transform="translate(830, 130)">
+          <rect class="node-rect" width="165" height="85" />
+          <rect x="0" y="0" width="165" height="24" rx="8" fill="#be185d" />
+          <text x="82" y="16" fill="white" font-size="9.5" font-weight="700" text-anchor="middle">SenseNova LLM API</text>
+          <text x="12" y="42" fill="#f472b6" font-size="10" font-weight="700">SenseChat-5 Model</text>
+          <text x="12" y="58" fill="#94a3b8" font-size="8.5" font-family="monospace">HTTPS External Gateway</text>
+          <text x="12" y="74" fill="#cbd5e1" font-size="8.5">Intent + Dynamic SQL Gen</text>
+        </g>
+
+        <!-- 5B. External Database 1: Aiven Cloud MySQL -->
+        <g id="node-mysql" class="arch-node" transform="translate(830, 275)">
+          <rect class="node-rect" width="165" height="95" />
+          <rect x="0" y="0" width="165" height="24" rx="8" fill="#047857" />
+          <text x="82" y="16" fill="white" font-size="9.5" font-weight="700" text-anchor="middle">Aiven Cloud MySQL</text>
+          <text x="12" y="42" fill="#34d399" font-size="10" font-weight="700">Catalog &amp; Inventory DB</text>
+          <text x="12" y="58" fill="#94a3b8" font-size="8.5" font-family="monospace">Port 16512 (TLS Encrypted)</text>
+          <text x="12" y="72" fill="#cbd5e1" font-size="8.5">Products, Stock, Sizes, Prices</text>
+          <text x="12" y="86" fill="#10b981" font-size="8" font-weight="600">Read-Only SQL Pool</text>
+        </g>
+
+        <!-- 5C. External Database 2: Supabase PostgreSQL -->
+        <g id="node-supabase" class="arch-node" transform="translate(830, 425)">
+          <rect class="node-rect" width="165" height="95" />
+          <rect x="0" y="0" width="165" height="24" rx="8" fill="#0f766e" />
+          <text x="82" y="16" fill="white" font-size="9.5" font-weight="700" text-anchor="middle">Supabase PostgreSQL</text>
+          <text x="12" y="42" fill="#2dd4bf" font-size="10" font-weight="700">Memory Checkpointer</text>
+          <text x="12" y="58" fill="#94a3b8" font-size="8.5" font-family="monospace">Session Threads / State</text>
+          <text x="12" y="72" fill="#cbd5e1" font-size="8.5">LangGraph State Persistence</text>
+          <text x="12" y="86" fill="#38bdf8" font-size="8" font-weight="600">Thread Isolation per User</text>
+        </g>
+
+        <!-- Moving Packet Circle -->
+        <circle id="live-packet" class="packet-dot" cx="0" cy="0" r="7" />
+      </svg>
+    </div>
+
+    <!-- Right Sidebar (Tabs for Client Simulator & Telemetry) -->
+    <div class="sidebar">
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" onclick="switchTab('simulator', this)">📱 User Simulator</button>
+        <button class="tab-btn" onclick="switchTab('telemetry', this)">📊 Cloud Telemetry</button>
+      </div>
+
+      <!-- Tab 1: Client Device Simulator -->
+      <div id="tab-simulator" class="tab-content active">
+        <div class="phone-mockup">
+          <div class="phone-header">
+            <div style="display:flex; align-items:center; gap: 8px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+              <span style="font-weight: 700; font-size: 11px;">STELLA Luxury Fashion</span>
+            </div>
+            <div class="phone-url">🔒 predictoraa.com</div>
+          </div>
+
+          <div class="phone-chat-body" id="chat-messages">
+            <div class="chat-bubble ai">
+              <strong>STELLA AI:</strong> Welcome to the Haute Couture boutique! How may I elevate your wardrobe today?
+            </div>
+          </div>
+
+          <!-- Quick action chips -->
+          <div class="quick-prompts">
+            <span class="quick-chip" onclick="triggerScenario('chat_dress')">👗 Silk Evening Gowns</span>
+            <span class="quick-chip" onclick="triggerScenario('chat_handbag')">👜 Designer Handbags</span>
+            <span class="quick-chip" onclick="triggerScenario('frontend')">🌐 Refresh Catalog</span>
+            <span class="quick-chip" onclick="triggerScenario('delete_chat')">🗑️ Clear Chat</span>
+          </div>
+
+          <div class="phone-input-bar">
+            <input type="text" id="custom-query-input" placeholder="Ask STELLA anything or click scenario..." onkeypress="handleInputKey(event)">
+            <button class="phone-send-btn" onclick="sendCustomUserQuery()">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Live Cloud Telemetry & Packet Inspector -->
+      <div id="tab-telemetry" class="tab-content">
+        <div class="telemetry-pane">
+          
+          <!-- Cloud Metrics HUD -->
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-label">ALB Response Latency</div>
+              <div class="metric-value" id="metric-latency">48 ms</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Backend CPU Usage</div>
+              <div class="metric-value" id="metric-cpu" style="color: #10b981;">22 %</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Active Fargate Tasks</div>
+              <div class="metric-value" id="metric-tasks">2 Tasks</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">HTTP Status Code</div>
+              <div class="metric-value" id="metric-status" style="color: #10b981;">200 OK</div>
+            </div>
+          </div>
+
+          <!-- Path Routing Rules Box -->
+          <div class="routing-rules-box">
+            <h4>⚖️ ALB Path Routing Table (alb-fashion-agent)</h4>
+            <div class="rule-item" id="rule-item-fe">
+              <span>Path: <code>/*</code> (Default)</span>
+              <span style="color:#60a5fa;">&rarr; tg-fashion-frontend:80</span>
+            </div>
+            <div class="rule-item" id="rule-item-be">
+              <span>Path: <code>/chat*</code>, <code>/products*</code></span>
+              <span style="color:#c084fc;">&rarr; tg-fashion-backend:8000</span>
+            </div>
+          </div>
+
+          <!-- Live Log Terminal -->
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size: 11px; font-weight: 700; color: #94a3b8;">ECS &amp; ALB LOG STREAM</span>
+            <button onclick="clearLogs()" style="background:transparent; border:none; color:#64748b; font-size:10px; cursor:pointer;">Clear</button>
+          </div>
+          <div class="log-terminal" id="log-terminal">
+            <div class="log-line"><span class="log-time">[System]</span> Visualizer initialized. Ready for traffic simulation.</div>
+            <div class="log-line"><span class="log-time">[ALB]</span> Target group tg-fashion-backend health check: 200 OK</div>
+            <div class="log-line"><span class="log-time">[ALB]</span> Target group tg-fashion-frontend health check: 200 OK</div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom Explainer Status Bar -->
+  <div class="flow-explainer">
+    <div class="flow-step-text" id="flow-step-description">
+      <span class="step-pill">IDLE</span>
+      <span>Select a scenario above to trace the live network packet across AWS Application Load Balancer and ECS Fargate.</span>
+    </div>
+    <div style="font-size: 11px; color: #64748b; font-family: monospace;">
+      AWS us-east-1 &bull; Fargate v1.4.0 &bull; Python 3.11 &bull; LangGraph
+    </div>
+  </div>
+
+  <!-- Interactive JavaScript Engine -->
+  <script>
+    // System State Variables
+    let animationSpeed = 1.0;
+    let isAnimating = false;
+    let autoScaleActive = false;
+
+    // SVG and DOM Elements
+    const svg = document.getElementById('arch-svg');
+    const packet = document.getElementById('live-packet');
+    const flowStepEl = document.getElementById('flow-step-description');
+    const logTerminal = document.getElementById('log-terminal');
+    const chatContainer = document.getElementById('chat-messages');
+
+    // Metrics elements
+    const metricLatency = document.getElementById('metric-latency');
+    const metricCpu = document.getElementById('metric-cpu');
+    const metricTasks = document.getElementById('metric-tasks');
+    const metricStatus = document.getElementById('metric-status');
+
+    function setSpeed(speed, btn) {
+      animationSpeed = speed;
+      document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      log(`Animation speed updated to ${speed}x`);
+    }
+
+    function switchTab(tabName, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+    }
+
+    function log(message, type = 'System') {
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+      const line = document.createElement('div');
+      line.className = 'log-line';
+
+      let typeClass = 'log-alb';
+      if (type === 'Backend') typeClass = 'log-be';
+      if (type === 'Frontend') typeClass = 'log-fe';
+      if (type === 'Database') typeClass = 'log-db';
+      if (type === 'LLM') typeClass = 'log-llm';
+      if (type === 'Warn') typeClass = 'log-warn';
+      if (type === 'Error') typeClass = 'log-err';
+
+      line.innerHTML = `<span class="log-time">[${timeStr}]</span> <span class="${typeClass}">[${type}]</span> ${message}`;
+      logTerminal.appendChild(line);
+      logTerminal.scrollTop = logTerminal.scrollHeight;
+    }
+
+    function clearLogs() {
+      logTerminal.innerHTML = '<div class="log-line"><span class="log-time">[System]</span> Logs cleared.</div>';
+    }
+
+    function updateStepText(pillText, description) {
+      flowStepEl.innerHTML = `<span class="step-pill">${pillText}</span> <span>${description}</span>`;
+    }
+
+    function resetSimulation() {
+      isAnimating = false;
+      packet.style.display = 'none';
+      document.querySelectorAll('.wire-path').forEach(p => {
+        p.classList.remove('active-path', 'active-path-backend', 'active-path-db', 'active-path-delete');
+      });
+      document.querySelectorAll('.arch-node').forEach(n => {
+        n.classList.remove('active-node', 'active-node-backend', 'active-node-db');
+      });
+      document.querySelectorAll('.rule-item').forEach(r => r.classList.remove('highlighted'));
+      
+      // Reset Task 2 replica
+      autoScaleActive = false;
+      const task2 = document.getElementById('node-backend-2');
+      task2.style.opacity = '0.35';
+      document.getElementById('task2-status-text').textContent = 'Status: Standby (Min: 1, Max: 3)';
+      document.getElementById('task2-status-text').setAttribute('fill', '#94a3b8');
+      document.getElementById('cpu-bar-fill-1').setAttribute('width', '24');
+      document.getElementById('cpu-bar-fill-1').setAttribute('fill', '#10b981');
+      document.getElementById('cpu-bar-text-1').textContent = 'CPU: 20%';
+
+      metricTasks.textContent = '2 Tasks';
+      metricCpu.textContent = '22 %';
+      metricCpu.style.color = '#10b981';
+      metricLatency.textContent = '48 ms';
+      metricStatus.textContent = '200 OK';
+
+      updateStepText('IDLE', 'Simulation reset. Ready for new traffic requests.');
+      log('All nodes and network connections reset.');
+    }
+
+    // Animate packet along an SVG path
+    function animateAlongPath(pathId, duration, color = '#38bdf8', reverse = false) {
+      return new Promise((resolve) => {
+        const path = document.getElementById(pathId);
+        if (!path) {
+          resolve();
+          return;
+        }
+
+        const pathLength = path.getTotalLength();
+        packet.setAttribute('fill', color);
+        packet.style.display = 'block';
+
+        const startTime = performance.now();
+        const adjustedDuration = duration / animationSpeed;
+
+        function step(currentTime) {
+          const elapsed = currentTime - startTime;
+          const progress = Math.min(elapsed / adjustedDuration, 1.0);
+          const currentDistance = reverse ? pathLength * (1 - progress) : pathLength * progress;
+          const point = path.getPointAtLength(currentDistance);
+
+          packet.setAttribute('cx', point.x);
+          packet.setAttribute('cy', point.y);
+
+          if (progress < 1.0 && isAnimating) {
+            requestAnimationFrame(step);
+          } else {
+            resolve();
+          }
+        }
+
+        requestAnimationFrame(step);
+      });
+    }
+
+    function highlightNode(nodeId, type = 'blue', active = true) {
+      const node = document.getElementById(nodeId);
+      if (!node) return;
+      if (active) {
+        if (type === 'backend') node.classList.add('active-node-backend');
+        else if (type === 'db') node.classList.add('active-node-db');
+        else node.classList.add('active-node');
+      } else {
+        node.classList.remove('active-node', 'active-node-backend', 'active-node-db');
+      }
+    }
+
+    function highlightPath(pathId, className = 'active-path', active = true) {
+      const path = document.getElementById(pathId);
+      if (!path) return;
+      if (active) path.classList.add(className);
+      else path.classList.remove(className);
+    }
+
+    // Scenario Handler
+    async function triggerScenario(type) {
+      if (isAnimating) {
+        log('A request is currently in flight. Please wait...', 'Warn');
+        return;
+      }
+      isAnimating = true;
+
+      if (type === 'frontend') {
+        await runFrontendFlow();
+      } else if (type === 'chat_dress') {
+        await runChatFlow('Looking for a red silk evening gown under ₹20,000 for a gala');
+      } else if (type === 'chat_handbag') {
+        await runChatFlow('Show me luxury quilted leather handbags in stock');
+      } else if (type === 'delete_chat') {
+        await runDeleteFlow();
+      } else if (type === 'stress_test') {
+        await runStressTestFlow();
+      }
+
+      isAnimating = false;
+    }
+
+    /* SCENARIO 1: Frontend Browse Flow */
+    async function runFrontendFlow() {
+      log('User initiated GET / (Frontend Catalog Page)', 'Client');
+      updateStepText('CLIENT', 'User requests https://predictoraa.com/ - Querying DNS');
+      highlightNode('node-client', 'blue', true);
+
+      // 1. Client -> DNS
+      highlightPath('path-client-dns', 'active-path', true);
+      await animateAlongPath('path-client-dns', 400, '#38bdf8');
+      highlightNode('node-dns', 'blue', true);
+      log('Route 53 resolved predictoraa.com &rarr; ALB DualStack DNS', 'DNS');
+
+      // 2. DNS -> ALB
+      highlightPath('path-dns-alb', 'active-path', true);
+      await animateAlongPath('path-dns-alb', 400, '#38bdf8');
+      highlightNode('node-alb', 'blue', true);
+      log('TLS Handshake completed (ACM Cert valid for *.predictoraa.com)', 'ALB');
+      
+      // ALB Rule Evaluation
+      updateStepText('ALB EVAL', 'ALB evaluating path: "/" &rarr; Matches default rule "/*"');
+      document.getElementById('rule-item-fe').classList.add('highlighted');
+      log('Path "/" matches Default Rule "/*" &rarr; Routing to target group "tg-fashion-frontend"', 'ALB');
+      await new Promise(r => setTimeout(r, 400));
+
+      // 3. ALB -> Frontend Nginx Service
+      highlightPath('path-alb-frontend', 'active-path', true);
+      await animateAlongPath('path-alb-frontend', 600, '#38bdf8');
+      highlightNode('node-frontend', 'blue', true);
+      log('Nginx serving static bundle: index.html, styles.css, bundle.js', 'Frontend');
+      updateStepText('FRONTEND', 'Nginx container in private subnet served luxury catalog HTML (HTTP 200)');
+      await new Promise(r => setTimeout(r, 500));
+
+      // 4. Return to Client
+      log('HTTP 200 OK (Content-Length: 48KB) returned to client in 14ms', 'ALB');
+      metricLatency.textContent = '14 ms';
+      metricStatus.textContent = '200 OK';
+      highlightPath('path-alb-frontend', 'active-path', false);
+      highlightPath('path-dns-alb', 'active-path', false);
+      highlightPath('path-client-dns', 'active-path', false);
+      highlightNode('node-frontend', 'blue', false);
+      highlightNode('node-alb', 'blue', false);
+      highlightNode('node-dns', 'blue', false);
+      document.getElementById('rule-item-fe').classList.remove('highlighted');
+      packet.style.display = 'none';
+
+      // Update UI Simulator
+      addChatMessage('ai', '🛍️ <strong>Catalog Refreshed:</strong> Displaying latest 2026 Haute Couture collection directly from Nginx.');
+      updateStepText('COMPLETED', 'Frontend page loaded successfully in 14ms.');
+    }
+
+    /* SCENARIO 2: AI Chat Backend Flow */
+    async function runChatFlow(userMessage) {
+      log(`User sent chat message: "${userMessage}"`, 'Client');
+      addChatMessage('user', userMessage);
+      updateStepText('CLIENT', 'Sending POST /chat with thread_id to ALB');
+      highlightNode('node-client', 'blue', true);
+
+      // 1. Client -> DNS -> ALB
+      highlightPath('path-client-dns', 'active-path', true);
+      await animateAlongPath('path-client-dns', 400, '#38bdf8');
+      highlightNode('node-dns', 'blue', true);
+
+      highlightPath('path-dns-alb', 'active-path', true);
+      await animateAlongPath('path-dns-alb', 400, '#38bdf8');
+      highlightNode('node-alb', 'blue', true);
+
+      // ALB Path Evaluation: /chat matches Backend TG
+      updateStepText('ALB EVAL', 'ALB evaluates path: "/chat" &rarr; Matches Rule 1: /chat*');
+      document.getElementById('rule-item-be').classList.add('highlighted');
+      log('Path "/chat" matches Rule 1 &rarr; Forwarding to target group "tg-fashion-backend:8000"', 'ALB');
+      await new Promise(r => setTimeout(r, 450));
+
+      // 2. ALB -> Backend Task 1
+      highlightPath('path-alb-backend', 'active-path-backend', true);
+      await animateAlongPath('path-alb-backend', 650, '#c084fc');
+      highlightNode('node-backend-1', 'backend', true);
+      log('FastAPI container received POST /chat &bull; LangGraph agent activated', 'Backend');
+      updateStepText('LANGGRAPH', 'FastAPI agent parsing user intent & query constraints');
+      
+      // Temporary CPU bump
+      document.getElementById('cpu-bar-fill-1').setAttribute('width', '42');
+      document.getElementById('cpu-bar-text-1').textContent = 'CPU: 35%';
+      metricCpu.textContent = '35 %';
+      await new Promise(r => setTimeout(r, 400));
+
+      // 3. Backend -> SenseNova LLM (Intent Extraction & SQL Synthesis)
+      updateStepText('LLM INFERENCE', 'Calling SenseNova API: generating parameterized SQL query');
+      highlightPath('path-backend-llm', 'active-path-db', true);
+      await animateAlongPath('path-backend-llm', 600, '#ec4899');
+      highlightNode('node-llm', 'db', true);
+      log('SenseNova LLM synthesized SQL query: "SELECT * FROM products WHERE category = ... AND price <= ..."', 'LLM');
+      await new Promise(r => setTimeout(r, 600));
+
+      // Return LLM packet to backend
+      await animateAlongPath('path-backend-llm', 500, '#ec4899', true);
+      highlightNode('node-llm', 'db', false);
+      highlightPath('path-backend-llm', 'active-path-db', false);
+
+      // 4. Backend -> Aiven MySQL (Catalog execution)
+      updateStepText('DATABASE', 'Executing SQL query against Aiven Cloud MySQL (Port 16512 TLS)');
+      highlightPath('path-backend-mysql', 'active-path-db', true);
+      await animateAlongPath('path-backend-mysql', 600, '#10b981');
+      highlightNode('node-mysql', 'db', true);
+      log('Aiven MySQL executed query in 38ms &bull; Returned 3 matching luxury items', 'Database');
+      await new Promise(r => setTimeout(r, 550));
+
+      // Return MySQL data packet to backend
+      await animateAlongPath('path-backend-mysql', 500, '#10b981', true);
+      highlightNode('node-mysql', 'db', false);
+      highlightPath('path-backend-mysql', 'active-path-db', false);
+
+      // 5. Backend -> Supabase PostgreSQL (Save state checkpoint)
+      updateStepText('STATE MEMORY', 'Persisting thread history to Supabase PostgreSQL checkpointer');
+      highlightPath('path-backend-supabase', 'active-path-db', true);
+      await animateAlongPath('path-backend-supabase', 600, '#2dd4bf');
+      highlightNode('node-supabase', 'db', true);
+      log('Supabase committed state checkpoint for thread_id "usr_fashion_01"', 'Database');
+      await new Promise(r => setTimeout(r, 500));
+
+      // Return Supabase confirmation
+      await animateAlongPath('path-backend-supabase', 500, '#2dd4bf', true);
+      highlightNode('node-supabase', 'db', false);
+      highlightPath('path-backend-supabase', 'active-path-db', false);
+
+      // 6. Return response to Client
+      updateStepText('RESPONSE', 'Backend returning AI recommendation JSON to ALB &rarr; Client');
+      log('FastAPI completed pipeline in 842ms &bull; HTTP 200 response returned', 'Backend');
+      metricLatency.textContent = '842 ms';
+      metricStatus.textContent = '200 OK';
+
+      // Clear highlights
+      highlightPath('path-alb-backend', 'active-path-backend', false);
+      highlightPath('path-dns-alb', 'active-path', false);
+      highlightPath('path-client-dns', 'active-path', false);
+      highlightNode('node-backend-1', 'backend', false);
+      highlightNode('node-alb', 'blue', false);
+      highlightNode('node-dns', 'blue', false);
+      document.getElementById('rule-item-be').classList.remove('highlighted');
+      packet.style.display = 'none';
+
+      // Reset CPU
+      document.getElementById('cpu-bar-fill-1').setAttribute('width', '24');
+      document.getElementById('cpu-bar-text-1').textContent = 'CPU: 20%';
+      metricCpu.textContent = '20 %';
+
+      // Deliver Response into Chat UI
+      if (userMessage.toLowerCase().includes('gown') || userMessage.toLowerCase().includes('dress')) {
+        addChatMessage('ai', `
+          I found an exquisite selection for your gala:
+          <div class="product-card">
+            <div class="product-title">Ruby Red Silk Crêpe Evening Gown</div>
+            <div style="font-size:11px; color:#cbd5e1; margin-top:2px;">Hand-draped bodice with micro-pleated skirt.</div>
+            <div class="product-meta"><span>Price: ₹18,500</span><span>In Stock (Size M, L)</span></div>
+          </div>
+        `);
+      } else {
+        addChatMessage('ai', `
+          Here are our curated luxury leather pieces currently in stock:
+          <div class="product-card">
+            <div class="product-title">Monogram Quilted Calfskin Shoulder Bag</div>
+            <div style="font-size:11px; color:#cbd5e1; margin-top:2px;">Italian top-grain leather with 24k gold-plated chain strap.</div>
+            <div class="product-meta"><span>Price: ₹24,900</span><span>Only 2 Units Left</span></div>
+          </div>
+        `);
+      }
+
+      updateStepText('COMPLETED', 'AI Stylist response rendered with live inventory verification.');
+    }
+
+    /* SCENARIO 3: Delete Chat History Flow */
+    async function runDeleteFlow() {
+      log('User initiated DELETE /chat/history (Clear Session Memory)', 'Client');
+      addChatMessage('system', '🗑️ Requesting deletion of chat thread checkpoints...');
+      updateStepText('CLIENT', 'Sending DELETE /chat/history to reset LangGraph thread');
+      highlightNode('node-client', 'blue', true);
+
+      // Route through ALB to Backend
+      highlightPath('path-client-dns', 'active-path', true);
+      await animateAlongPath('path-client-dns', 400, '#f43f5e');
+      highlightPath('path-dns-alb', 'active-path', true);
+      await animateAlongPath('path-dns-alb', 400, '#f43f5e');
+      highlightNode('node-alb', 'blue', true);
+
+      // ALB routes to backend
+      document.getElementById('rule-item-be').classList.add('highlighted');
+      highlightPath('path-alb-backend', 'active-path-delete', true);
+      await animateAlongPath('path-alb-backend', 600, '#f43f5e');
+      highlightNode('node-backend-1', 'backend', true);
+      log('FastAPI received DELETE /chat/history &bull; Purging thread from Supabase', 'Backend');
+
+      // Backend -> Supabase to delete state
+      updateStepText('DATABASE', 'Purging conversation checkpoints in Supabase PostgreSQL');
+      highlightPath('path-backend-supabase', 'active-path-delete', true);
+      await animateAlongPath('path-backend-supabase', 600, '#f43f5e');
+      highlightNode('node-supabase', 'db', true);
+      log('Supabase executed: DELETE FROM checkpoints WHERE thread_id = "usr_fashion_01"', 'Database');
+      await new Promise(r => setTimeout(r, 500));
+
+      // Return confirmation
+      await animateAlongPath('path-backend-supabase', 500, '#f43f5e', true);
+      highlightNode('node-supabase', 'db', false);
+      highlightPath('path-backend-supabase', 'active-path-delete', false);
+
+      metricLatency.textContent = '88 ms';
+      metricStatus.textContent = '200 OK';
+
+      // Clear highlights
+      highlightPath('path-alb-backend', 'active-path-delete', false);
+      highlightPath('path-dns-alb', 'active-path', false);
+      highlightPath('path-client-dns', 'active-path', false);
+      highlightNode('node-backend-1', 'backend', false);
+      highlightNode('node-alb', 'blue', false);
+      highlightNode('node-client', 'blue', false);
+      document.getElementById('rule-item-be').classList.remove('highlighted');
+      packet.style.display = 'none';
+
+      // Clear chat messages in Simulator
+      chatContainer.innerHTML = `
+        <div class="chat-bubble system">
+          ✨ Memory wiped! Chat thread checkpoints deleted from Supabase PostgreSQL.
+        </div>
+        <div class="chat-bubble ai">
+          Hello again! I am STELLA. What would you like to explore in our boutique today?
+        </div>
+      `;
+      updateStepText('COMPLETED', 'Chat history successfully erased from cloud memory.');
+      log('Memory wipe complete. Clean session initialized.', 'System');
+    }
+
+    /* SCENARIO 4: Stress Test & Auto-Scaling Flow */
+    async function runStressTestFlow() {
+      log('⚠️ STRESS TEST INITIATED: Simulating 50 concurrent luxury shopper requests...', 'Warn');
+      updateStepText('STRESS TEST', 'Injecting high concurrency traffic &rarr; CPU utilization climbing!');
+      
+      // Visual CPU Spike
+      document.getElementById('cpu-bar-fill-1').setAttribute('width', '95');
+      document.getElementById('cpu-bar-fill-1').setAttribute('fill', '#ef4444');
+      document.getElementById('cpu-bar-text-1').textContent = 'CPU: 78%';
+      metricCpu.textContent = '78 %';
+      metricCpu.style.color = '#ef4444';
+      highlightNode('node-backend-1', 'backend', true);
+
+      log('CloudWatch Alarm triggered: "fashion-backend-cpu-high" (Threshold: CPU > 70%)', 'Warn');
+      updateStepText('ALARM TRIGGERED', 'CPU at 78% (> 70% policy) &rarr; AWS Application Auto Scaling triggered!');
+      await new Promise(r => setTimeout(r, 1000));
+
+      // Spin up Task 2 Replica
+      const task2 = document.getElementById('node-backend-2');
+      task2.style.transition = 'all 0.6s ease';
+      task2.style.opacity = '1.0';
+      document.getElementById('task2-status-text').textContent = 'Status: RUNNING (DesiredCount: 2)';
+      document.getElementById('task2-status-text').setAttribute('fill', '#34d399');
+      highlightPath('path-alb-backend-rep2', 'active-path', true);
+      log('ECS Fargate provisioned Replica: fashion-backend-service-task-2 in az-us-east-1b', 'System');
+      metricTasks.textContent = '3 Tasks (1 FE + 2 BE)';
+      
+      // Auto-scaling active message
+      addChatMessage('system', '⚡ High traffic detected! ECS Auto-Scaling spun up Replica Task 2 in us-east-1b.');
+      await new Promise(r => setTimeout(r, 900));
+
+      // Re-balance load
+      document.getElementById('cpu-bar-fill-1').setAttribute('width', '45');
+      document.getElementById('cpu-bar-fill-1').setAttribute('fill', '#10b981');
+      document.getElementById('cpu-bar-text-1').textContent = 'CPU: 38%';
+      metricCpu.textContent = '38 %';
+      metricCpu.style.color = '#10b981';
+      log('ALB distributing requests across Task 1 and Task 2. CPU normalized to 38%.', 'ALB');
+      updateStepText('SCALE COMPLETED', 'Traffic balanced across 2 backend tasks. Latency maintained < 120ms.');
+
+      await new Promise(r => setTimeout(r, 1200));
+      highlightNode('node-backend-1', 'backend', false);
+      highlightPath('path-alb-backend-rep2', 'active-path', false);
+    }
+
+    function addChatMessage(role, content) {
+      const bubble = document.createElement('div');
+      bubble.className = `chat-bubble ${role}`;
+      bubble.innerHTML = content;
+      chatContainer.appendChild(bubble);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function handleInputKey(event) {
+      if (event.key === 'Enter') {
+        sendCustomUserQuery();
+      }
+    }
+
+    function sendCustomUserQuery() {
+      const input = document.getElementById('custom-query-input');
+      const val = input.value.trim();
+      if (!val) return;
+      input.value = '';
+      
+      if (val.toLowerCase().includes('delete') || val.toLowerCase().includes('clear')) {
+        triggerScenario('delete_chat');
+      } else {
+        runChatFlow(val);
+      }
+    }
+  </script>
+</body>
+</html>

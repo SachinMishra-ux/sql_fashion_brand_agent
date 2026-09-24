@@ -14,7 +14,8 @@
 
 ![Maison Luxé AWS Cloud Architecture](./docs/aws_architecture_diagram.png)
 
-> 💡 *Vector SVG and High-Resolution 3840×2400 formats are available in [`docs/aws_architecture_diagram.svg`](./docs/aws_architecture_diagram.svg) and [`docs/aws_architecture_diagram.jpg`](./docs/aws_architecture_diagram.jpg).*
+> 💡 *Vector SVG and High-Resolution 3840×2400 formats are available in [`docs/aws_architecture_diagram.svg`](./docs/aws_architecture_diagram.svg) and [`docs/aws_architecture_diagram.jpg`](./docs/aws_architecture_diagram.jpg).*  
+> 🚀 **Live Interactive Architecture Visualizer:** Open [`docs/architecture_visualizer.html`](./docs/architecture_visualizer.html) in any browser for an interactive animated simulation of live traffic packets, ALB path routing, database calls, real-time client chat preview, and ECS auto-scaling!
 
 ---
 
@@ -172,6 +173,7 @@ All setup guides, runbooks, and educational resources are located in the [`docs/
 
 | Document | Description | Format |
 | :--- | :--- | :---: |
+| 🎮 [**Interactive Architecture Visualizer**](./docs/architecture_visualizer.html) | Live animated traffic simulator showing ALB path routing, DB queries, and ECS auto-scaling. | [Interactive HTML](./docs/architecture_visualizer.html) |
 | 🏛️ [**System Architecture & Data Flow**](./docs/system_architecture_and_data_flow.md) | Comprehensive visual guide detailing all AWS components & traffic flow. | Markdown |
 | 🏆 [**Master Project Checklist & Roadmap**](./docs/master_project_checklist_and_roadmap.md) | Complete 8-stage project checklist from DB provisioning to LangSmith. | [Markdown](./docs/master_project_checklist_and_roadmap.md) · [PDF](./docs/master_project_checklist_and_roadmap.pdf) |
 | 🧪 [**Stress Testing & Auto-Scaling Guide**](./docs/stress_testing_and_auto_scaling_guide.md) | Postman Performance Runner setup, Python load testing & ECS Auto-Scaling. | Markdown |
