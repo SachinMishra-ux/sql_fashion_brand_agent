@@ -25,6 +25,14 @@ Watch data packets move in real-time across the infrastructure when a customer q
 
 *Trace Sequence: Client Browser &rarr; Route 53 DNS &rarr; ALB Path Match (`/chat*`) &rarr; ECS Fargate Backend (`:8000`) &rarr; SenseNova LLM (SQL Gen) &rarr; Aiven Cloud MySQL (Inventory) &rarr; Supabase Postgres (Checkpoints) &rarr; Client Response.*
 
+### 📝 Handwritten Architecture Note & Sticky Notes
+
+For an intuitive, whiteboard-style mental model, here is the complete end-to-end architecture captured as an engineer's handwritten notebook diagram with color-coded sticky notes:
+
+![Maison Luxé Handwritten Architecture Notes](./docs/architecture_handwritten_notes.png)
+
+*Components visualized: Client Browser (predictoraa.com) ➔ Route 53 DNS & ACM SSL ➔ AWS Application Load Balancer (ALB) ➔ AWS ECS Fargate Cluster (Frontend Nginx :80 & Backend FastAPI :8000) ➔ SenseNova LLM API ➔ Aiven Cloud MySQL ➔ Supabase PostgreSQL Memory.*
+
 ---
 
 ## 🌟 What is this Project All About?
@@ -182,6 +190,7 @@ All setup guides, runbooks, and educational resources are located in the [`docs/
 | Document | Description | Format |
 | :--- | :--- | :---: |
 | 🎮 [**Interactive Architecture Visualizer**](./docs/architecture_visualizer.html) | Live animated traffic simulator showing ALB path routing, DB queries, and ECS auto-scaling. | [Interactive HTML](./docs/architecture_visualizer.html) |
+| 📝 [**Handwritten Architecture Notes**](./docs/architecture_handwritten_notes.png) | Intuitive engineer notebook flat-lay sketch with sticky notes and hand-drawn cloud routing. | [PNG](./docs/architecture_handwritten_notes.png) · [JPG](./docs/architecture_handwritten_notes.jpg) |
 | 🏛️ [**System Architecture & Data Flow**](./docs/system_architecture_and_data_flow.md) | Comprehensive visual guide detailing all AWS components & traffic flow. | Markdown |
 | 🏆 [**Master Project Checklist & Roadmap**](./docs/master_project_checklist_and_roadmap.md) | Complete 8-stage project checklist from DB provisioning to LangSmith. | [Markdown](./docs/master_project_checklist_and_roadmap.md) · [PDF](./docs/master_project_checklist_and_roadmap.pdf) |
 | 🧪 [**Stress Testing & Auto-Scaling Guide**](./docs/stress_testing_and_auto_scaling_guide.md) | Postman Performance Runner setup, Python load testing & ECS Auto-Scaling. | Markdown |
