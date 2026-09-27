@@ -162,3 +162,5 @@ def resolve_thread_id(
         detail="Could not determine thread ID. Please provide 'thread_id', 'user_id', 'username', or send an Authorization Bearer token.",
     )
 
+if __name__ == "__main__":
+    print(create_access_token(DEMO_USERS[0]))

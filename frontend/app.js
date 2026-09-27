@@ -9,32 +9,32 @@ const API_BASE = (window.location.hostname === "localhost" && window.location.po
   : "";
 
 // ── DOM refs ─────────────────────────────────────────────────
-const productGrid    = document.getElementById("product-grid");
-const productCount   = document.getElementById("product-count");
-const chatPanel      = document.getElementById("chat-panel");
-const chatMessages   = document.getElementById("chat-messages");
-const chatProducts   = document.getElementById("chat-products");
-const chatForm       = document.getElementById("chat-form");
-const chatInput      = document.getElementById("chat-input");
-const sendBtn        = document.getElementById("send-btn");
-const toggleChatBtn  = document.getElementById("toggle-chat-btn");
-const heroCta        = document.getElementById("hero-cta-btn");
-const closeChatBtn   = document.getElementById("close-chat-btn");
-const clearChatBtn   = document.getElementById("clear-chat-btn");
-const modalOverlay   = document.getElementById("modal-overlay");
-const modalClose     = document.getElementById("modal-close");
-const toast          = document.getElementById("toast");
+const productGrid = document.getElementById("product-grid");
+const productCount = document.getElementById("product-count");
+const chatPanel = document.getElementById("chat-panel");
+const chatMessages = document.getElementById("chat-messages");
+const chatProducts = document.getElementById("chat-products");
+const chatForm = document.getElementById("chat-form");
+const chatInput = document.getElementById("chat-input");
+const sendBtn = document.getElementById("send-btn");
+const toggleChatBtn = document.getElementById("toggle-chat-btn");
+const heroCta = document.getElementById("hero-cta-btn");
+const closeChatBtn = document.getElementById("close-chat-btn");
+const clearChatBtn = document.getElementById("clear-chat-btn");
+const modalOverlay = document.getElementById("modal-overlay");
+const modalClose = document.getElementById("modal-close");
+const toast = document.getElementById("toast");
 
 // User Switcher DOM refs
-const userSwitcher   = document.getElementById("user-switcher");
-const userBtn        = document.getElementById("user-btn");
-const userDropdown   = document.getElementById("user-dropdown");
-const userOptions    = document.getElementById("user-options");
+const userSwitcher = document.getElementById("user-switcher");
+const userBtn = document.getElementById("user-btn");
+const userDropdown = document.getElementById("user-dropdown");
+const userOptions = document.getElementById("user-options");
 const currentUserAvatar = document.getElementById("current-user-avatar");
-const currentUserName   = document.getElementById("current-user-name");
-const currentUserTier   = document.getElementById("current-user-tier");
+const currentUserName = document.getElementById("current-user-name");
+const currentUserTier = document.getElementById("current-user-tier");
 const chatUserIndicatorAvatar = document.getElementById("chat-user-indicator-avatar");
-const chatUserIndicatorName   = document.getElementById("chat-user-indicator-name");
+const chatUserIndicatorName = document.getElementById("chat-user-indicator-name");
 
 // Quick prompts
 const quickPills = document.querySelectorAll(".quick-pill");
@@ -49,11 +49,11 @@ const quickPrompts = [
 const navPills = document.querySelectorAll(".nav-pill");
 
 // ── State ─────────────────────────────────────────────────────
-let allProducts  = [];
-let wishlist     = new Set();
+let allProducts = [];
+let wishlist = new Set();
 let currentFilter = "";
-let demoUsers    = [];
-let activeUser   = null;
+let demoUsers = [];
+let activeUser = null;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -134,7 +134,7 @@ function buildProductCard(p) {
     </div>
   `;
 
-  card.addEventListener("click",  () => openModal(p));
+  card.addEventListener("click", () => openModal(p));
   card.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") openModal(p); });
   return card;
 }
@@ -167,7 +167,7 @@ async function loadProducts(category = "") {
     const url = category
       ? `${API_BASE}/products?category=${encodeURIComponent(category)}`
       : `${API_BASE}/products`;
-    const res  = await fetch(url);
+    const res = await fetch(url);
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Failed to load products");
     allProducts = data.products || [];
@@ -205,13 +205,13 @@ function openModal(p) {
   const modalImg = document.getElementById("modal-img");
   modalImg.src = p.image_url || "";
   modalImg.alt = p.name;
-  modalImg.onerror = function() {
+  modalImg.onerror = function () {
     this.onerror = null;
     this.src = `https://picsum.photos/seed/${p.id}fashion/600/800`;
   };
-  document.getElementById("modal-brand").textContent    = p.brand;
+  document.getElementById("modal-brand").textContent = p.brand;
   document.getElementById("modal-product-name").textContent = p.name;
-  document.getElementById("modal-price").textContent    = discountedPrice;
+  document.getElementById("modal-price").textContent = discountedPrice;
 
   const discEl = document.getElementById("modal-discount");
   if (p.discount_pct) {
@@ -221,10 +221,10 @@ function openModal(p) {
     discEl.style.display = "none";
   }
 
-  const metaCat   = document.getElementById("modal-category");
+  const metaCat = document.getElementById("modal-category");
   const metaColor = document.getElementById("modal-color");
   const metaSizes = document.getElementById("modal-sizes");
-  metaCat.textContent   = `${p.category}${p.subcategory ? " · " + p.subcategory : ""}`;
+  metaCat.textContent = `${p.category}${p.subcategory ? " · " + p.subcategory : ""}`;
   metaColor.textContent = p.color || "";
   metaColor.style.display = p.color ? "" : "none";
   metaSizes.textContent = p.size_range ? `Sizes: ${p.size_range}` : "";
@@ -493,7 +493,7 @@ function renderChatProducts(products) {
         <div class="chat-product-price">${price}</div>
       </div>
     `;
-    card.addEventListener("click",  () => { openModal(p); });
+    card.addEventListener("click", () => { openModal(p); });
     card.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") openModal(p); });
     strip.appendChild(card);
   });
