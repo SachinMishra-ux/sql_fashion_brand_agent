@@ -2,7 +2,9 @@
 llm.py
 Initializes and returns the SenseNova LLM model via LangChain's ChatOpenAI.
 """
+
 import os
+
 from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI

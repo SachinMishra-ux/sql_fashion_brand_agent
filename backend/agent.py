@@ -3,15 +3,17 @@ agent.py
 Pure ReAct agent logic for the fashion brand catalog assistant (STELLA).
 Assembles tools, prompt, LLM, and persistence checkpointer using create_agent.
 """
+
 import json
 import logging
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_core.tools import tool
 
 try:
-    from backend import llm as llm_module, mysql_db, supabase
+    from backend import llm as llm_module
+    from backend import mysql_db, supabase
 except ImportError:
     import llm as llm_module
     import mysql_db
@@ -26,6 +28,7 @@ logger = logging.getLogger(__name__)
 # Tools
 # ──────────────────────────────────────────────────────────────
 
+
 @tool
 def execute_sql_query(query: str) -> str:
     """
@@ -39,8 +42,8 @@ def execute_sql_query(query: str) -> str:
         if not results:
             return "Query returned no rows."
         return json.dumps(results, default=str)
-    except Exception as e:
-        return f"SQL Error: {str(e)}\nPlease fix your SQL and try again."
+    except Exception as e:  # noqa: BLE001
+        return f"SQL Error: {e}\nPlease fix your SQL and try again."
 
 
 @tool
@@ -51,8 +54,8 @@ def get_database_schema() -> str:
     """
     try:
         return mysql_db.get_schema()
-    except Exception as e:
-        return f"Error fetching schema: {str(e)}"
+    except Exception as e:  # noqa: BLE001
+        return f"Error fetching schema: {e}"
 
 
 # ──────────────────────────────────────────────────────────────
@@ -99,6 +102,7 @@ For non-product answers (stats, user info, order history etc), format as:
 # Build Agent with create_agent
 # ──────────────────────────────────────────────────────────────
 
+
 def build_agent(checkpointer=None):
     """
     Assembles the ReAct agent using create_agent, passing SQL tools,
@@ -130,7 +134,9 @@ def get_agent():
     return _agent
 
 
-def chat(message: str, session_id: str = "default", user_context: dict | None = None) -> dict:
+def chat(
+    message: str, session_id: str = "default", user_context: dict | None = None
+) -> dict:
     """
     Sends a message to the ReAct agent and returns a parsed response dict.
     Returned dict always has: type, message, and optionally products[].

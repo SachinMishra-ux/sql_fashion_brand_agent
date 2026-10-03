@@ -2,20 +2,24 @@
 main.py
 FastAPI backend server for the Fashion Brand SQL ReAct Agent.
 """
-from fastapi import FastAPI, HTTPException, Depends, Security
-from fastapi.security import HTTPAuthorizationCredentials
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+
+import contextlib
+
 import uvicorn
+from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import BaseModel
 
 try:
-    from backend import auth, mysql_db, supabase, agent as ag
+    from backend import agent as ag
+    from backend import auth, mysql_db, supabase
 except ImportError:
+    import agent as ag
     import auth
     import mysql_db
     import supabase
-    import agent as ag
 
 app = FastAPI(
     title="Fashion Brand AI API",
@@ -37,13 +41,14 @@ app.add_middleware(
 # Request / Response schemas
 # ──────────────────────────────────────────────────────────────
 
+
 class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
 
 
 class ChatResponse(BaseModel):
-    type: str                          # "text" | "products"
+    type: str  # "text" | "products"
     message: str
     products: list[dict] = []
 
@@ -56,6 +61,7 @@ class ProductListResponse(BaseModel):
 # Routes
 # ──────────────────────────────────────────────────────────────
 
+
 @app.get("/health/mysql")
 def health_mysql():
     """Health check endpoint specifically for the MySQL database."""
@@ -63,7 +69,7 @@ def health_mysql():
         mysql_db.check_connection()
         return {"status": "ok", "service": "mysql"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"MySQL unreachable: {e}")
+        raise HTTPException(status_code=503, detail=f"MySQL unreachable: {e}") from e
 
 
 @app.get("/health/supabase")
@@ -73,7 +79,7 @@ def health_supabase():
         supabase.check_postgres_connection()
         return {"status": "ok", "service": "supabase"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Supabase unreachable: {e}")
+        raise HTTPException(status_code=503, detail=f"Supabase unreachable: {e}") from e
 
 
 @app.get("/health")
@@ -85,13 +91,13 @@ def health():
     mysql_status = {"status": "ok"}
     try:
         mysql_db.check_connection()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         mysql_status = {"status": "error", "error": str(e)}
 
     supabase_status = {"status": "ok"}
     try:
         supabase.check_postgres_connection()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         supabase_status = {"status": "error", "error": str(e)}
 
     all_healthy = mysql_status["status"] == "ok" and supabase_status["status"] == "ok"
@@ -141,7 +147,7 @@ def list_products(
         products = mysql_db.run_query(sql)
         return {"products": products}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/catalogs")
@@ -151,17 +157,19 @@ def list_catalogs():
         catalogs = mysql_db.run_query("SELECT * FROM catalogs ORDER BY year DESC, id")
         return {"catalogs": catalogs}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/categories")
 def list_categories():
     """Returns distinct product categories."""
     try:
-        rows = mysql_db.run_query("SELECT DISTINCT category FROM products ORDER BY category")
+        rows = mysql_db.run_query(
+            "SELECT DISTINCT category FROM products ORDER BY category"
+        )
         return {"categories": [r["category"] for r in rows]}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/auth/users")
@@ -197,7 +205,7 @@ def chat(
             products=result.get("products", []),
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.delete("/chat/history")
@@ -218,10 +226,8 @@ def delete_chat_history(
     """
     current_user = None
     if credentials and credentials.credentials:
-        try:
+        with contextlib.suppress(Exception):
             current_user = auth.verify_token(credentials.credentials)
-        except Exception:
-            pass
 
     target_thread_id = auth.resolve_thread_id(
         thread_id=thread_id,

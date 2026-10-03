@@ -2,7 +2,9 @@
 mysql_db.py
 Manages MySQL database connection, schema retrieval, and query execution.
 """
+
 import os
+
 import mysql.connector
 from dotenv import load_dotenv
 
@@ -15,7 +17,7 @@ DB_CONFIG = {
     "password": os.getenv("MYSQL_PASSWORD", ""),
     "database": os.getenv("MYSQL_DATABASE", "defaultdb"),
     "ssl_disabled": False,
-    "ssl_verify_cert": False,   # Aiven uses self-signed certs
+    "ssl_verify_cert": False,  # Aiven uses self-signed certs
     "connection_timeout": 10,
 }
 

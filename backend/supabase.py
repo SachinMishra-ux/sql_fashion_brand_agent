@@ -3,13 +3,15 @@ supabase.py
 Handles Supabase / PostgreSQL database connectivity, health checks,
 and LangGraph checkpointer initialization (PostgresSaver).
 """
+
+import contextlib
 import logging
 import os
 import re
-from dotenv import load_dotenv
-from langgraph.checkpoint.memory import MemorySaver
 
 import psycopg
+from dotenv import load_dotenv
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
@@ -35,7 +37,9 @@ def get_postgres_connection_info() -> str | None:
 
     if not password and raw_conn_str:
         # Extract user, password, host, port, dbname from connection string
-        match = re.match(r"^postgresql://([^:]+):(.*)@([^@/:]+)(?::(\d+))?/(.+)$", raw_conn_str)
+        match = re.match(
+            r"^postgresql://([^:]+):(.*)@([^@/:]+)(?::(\d+))?/(.+)$", raw_conn_str
+        )
         if match:
             user = user or match.group(1)
             password = match.group(2)
@@ -44,8 +48,10 @@ def get_postgres_connection_info() -> str | None:
             dbname = dbname or match.group(5)
 
     if host and user and password:
-        return f"host={host} port={port} dbname={dbname} user={user} password={password}"
-    elif raw_conn_str:
+        return (
+            f"host={host} port={port} dbname={dbname} user={user} password={password}"
+        )
+    if raw_conn_str:
         return raw_conn_str
     return None
 
@@ -57,14 +63,13 @@ def check_postgres_connection() -> dict:
     """
     conn_info = get_postgres_connection_info()
     if not conn_info:
-        raise ValueError("PostgreSQL/Supabase connection details are not configured in environment.")
+        raise ValueError(
+            "PostgreSQL/Supabase connection details are not configured in environment."
+        )
 
-    import psycopg
-
-    with psycopg.connect(conn_info, connect_timeout=5) as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1;")
-            cur.fetchone()
+    with psycopg.connect(conn_info, connect_timeout=5) as conn, conn.cursor() as cur:
+        cur.execute("SELECT 1;")
+        cur.fetchone()
 
     return {"status": "ok", "service": "supabase"}
 
@@ -78,7 +83,6 @@ def init_checkpointer():
     if conn_info:
         pool = None
         try:
-
             # Quick probe to verify host reachability before initializing pool
             with psycopg.connect(conn_info, connect_timeout=3) as _:
                 pass
@@ -86,19 +90,23 @@ def init_checkpointer():
             pool = ConnectionPool(
                 conninfo=conn_info,
                 max_size=10,
-                kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+                kwargs={
+                    "autocommit": True,
+                    "prepare_threshold": 0,
+                    "row_factory": dict_row,
+                },
             )
 
             checkpointer = PostgresSaver(pool)
             checkpointer.setup()
-            logger.info("Successfully initialized PostgreSQL PostgresSaver checkpointer.")
+            logger.info(
+                "Successfully initialized PostgreSQL PostgresSaver checkpointer."
+            )
             return checkpointer
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             if pool is not None:
-                try:
+                with contextlib.suppress(Exception):
                     pool.close()
-                except Exception:
-                    pass
             logger.warning(
                 f"Unable to connect to PostgreSQL checkpointer ({e}). "
                 "Falling back to MemorySaver for session state persistence."
@@ -129,21 +137,36 @@ def delete_thread_checkpoints(thread_id: str) -> dict:
     if hasattr(checkpointer, "delete_thread"):
         try:
             checkpointer.delete_thread(thread_id)
-            return {"status": "ok", "deleted_thread_id": thread_id, "message": f"Successfully deleted conversation history for {thread_id}"}
-        except Exception as e:
-            logger.warning(f"delete_thread failed on checkpointer ({e}), attempting direct SQL delete.")
+            return {
+                "status": "ok",
+                "deleted_thread_id": thread_id,
+                "message": f"Successfully deleted conversation history for {thread_id}",
+            }
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                f"delete_thread failed on checkpointer ({e}), attempting direct SQL delete."
+            )
 
     # Direct SQL delete fallback
     conn_info = get_postgres_connection_info()
     if conn_info:
-        import psycopg
-
         with psycopg.connect(conn_info) as conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM checkpoints WHERE thread_id = %s;", (str(thread_id),))
-                cur.execute("DELETE FROM checkpoint_blobs WHERE thread_id = %s;", (str(thread_id),))
-                cur.execute("DELETE FROM checkpoint_writes WHERE thread_id = %s;", (str(thread_id),))
+                cur.execute(
+                    "DELETE FROM checkpoints WHERE thread_id = %s;", (str(thread_id),)
+                )
+                cur.execute(
+                    "DELETE FROM checkpoint_blobs WHERE thread_id = %s;",
+                    (str(thread_id),),
+                )
+                cur.execute(
+                    "DELETE FROM checkpoint_writes WHERE thread_id = %s;",
+                    (str(thread_id),),
+                )
             conn.commit()
 
-    return {"status": "ok", "deleted_thread_id": thread_id, "message": f"Successfully deleted conversation history for {thread_id}"}
-
+    return {
+        "status": "ok",
+        "deleted_thread_id": thread_id,
+        "message": f"Successfully deleted conversation history for {thread_id}",
+    }

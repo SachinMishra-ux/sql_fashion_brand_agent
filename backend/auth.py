@@ -3,12 +3,20 @@ auth.py
 JWT authentication and user profile management for the Fashion Brand AI API.
 Provides token creation, verification, and FastAPI dependency get_current_user.
 """
+
+import contextlib
 import os
 import time
+
 import jwt
+from dotenv import load_dotenv
 from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from dotenv import load_dotenv
+
+try:
+    from backend import mysql_db
+except ImportError:
+    import mysql_db
 
 load_dotenv(override=True)
 
@@ -85,18 +93,18 @@ def verify_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except jwt.ExpiredSignatureError:
+    except jwt.ExpiredSignatureError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired. Please authenticate again.",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
     except jwt.InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid authentication token: {e}",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
 
 
 def get_current_user(
@@ -143,16 +151,12 @@ def resolve_thread_id(
                 return f"user_thread_{u['id']}"
 
         # Match against MySQL database
-        try:
-            import mysql_db
-
+        with contextlib.suppress(Exception):
             rows = mysql_db.run_query(
                 f"SELECT id FROM users WHERE LOWER(name) = '{uname}' OR LOWER(email) = '{uname}' LIMIT 1;"
             )
             if rows and "id" in rows[0]:
                 return f"user_thread_{rows[0]['id']}"
-        except Exception:
-            pass
 
     if current_user and "sub" in current_user:
         return f"user_thread_{current_user['sub']}"
@@ -161,6 +165,7 @@ def resolve_thread_id(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Could not determine thread ID. Please provide 'thread_id', 'user_id', 'username', or send an Authorization Bearer token.",
     )
+
 
 if __name__ == "__main__":
     print(create_access_token(DEMO_USERS[0]))

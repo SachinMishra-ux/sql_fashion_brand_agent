@@ -4,8 +4,9 @@ Executes during GitHub Actions Stage 1 (CI Quality Gate) before any Docker build
 """
 
 from fastapi.testclient import TestClient
-from backend.main import app
+
 from backend import auth
+from backend.main import app
 
 client = TestClient(app)
 
@@ -19,7 +20,8 @@ def test_auth_demo_users():
     priya = users[0]
     assert priya["name"] == "Priya Sharma"
     assert priya["loyalty_tier"] == "Platinum"
-    assert "token" in priya and len(priya["token"]) > 20
+    assert "token" in priya
+    assert len(priya["token"]) > 20
 
     # Verify token payload
     decoded = auth.verify_token(priya["token"])
