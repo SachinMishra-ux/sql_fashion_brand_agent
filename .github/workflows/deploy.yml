@@ -71,7 +71,7 @@ jobs:
         if: steps.filter.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           echo "Executing test suite..."
-          pytest backend/tests/ -v
+          PYTHONPATH=. pytest backend/tests/ -v
 
   # ═════════════════════════════════════════════════════════════
   # STAGE 1: CONTINUOUS INTEGRATION (CI) - FRONTEND QUALITY GATE
