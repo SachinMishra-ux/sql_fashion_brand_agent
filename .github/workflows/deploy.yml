@@ -14,8 +14,8 @@ env:
   ECR_BACKEND_REPO: fashion-backend
   ECR_FRONTEND_REPO: fashion-frontend
   ECS_CLUSTER: fashion-agent-cluster
-  ECS_BACKEND_SERVICE: fashion-backend-service
-  ECS_FRONTEND_SERVICE: fashion-frontend-service
+  ECS_BACKEND_SERVICE: fashion-backend-service-p0mkdv21
+  ECS_FRONTEND_SERVICE: fashion-frontend-service-uz7lrmbb
 
 permissions:
   id-token: write   # Required for AWS OIDC authentication
